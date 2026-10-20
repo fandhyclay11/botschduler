@@ -1,0 +1,69 @@
+{
+  "roles": [
+    "CIF",
+    "SSL",
+    "SJL",
+    "P.SHIFT",
+    "SCB",
+    "SCG"
+  ],
+  "roleLabels": {
+    "CIF": "Chief of Store",
+    "SSL": "Store Senior Leader",
+    "SJL": "Store Junior Leader",
+    "SCB": "Store Crew Boy",
+    "SCG": "Store Crew Girl",
+    "P.SHIFT": "Pimpinan Shift"
+  },
+  "members": {
+    "6285942982757": {
+      "phone": "6285942982757",
+      "name": "Agung",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T05:46:32.899Z",
+      "updatedAt": "2026-09-15T20:30:36.349Z"
+    },
+    "6282214733862": {
+      "phone": "6282214733862",
+      "name": "Ayinun",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T05:57:30.445Z",
+      "updatedAt": "2026-09-12T17:39:40.065Z"
+    },
+    "6285398388963": {
+      "phone": "6285398388963",
+      "name": "Nur awalia",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T18:09:30.472Z",
+      "updatedAt": "2026-09-15T20:30:36.308Z"
+    },
+    "6285134570179": {
+      "phone": "6285134570179",
+      "name": "Sridayanti",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T18:09:30.482Z",
+      "updatedAt": "2026-09-15T20:30:36.312Z"
+    },
+    "6285334118789": {
+      "phone": "6285334118789",
+      "name": "Faris mardana",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T18:58:58.348Z",
+      "updatedAt": "2026-09-15T20:30:36.317Z"
+    },
+    "6281140801155": {
+      "phone": "6281140801155",
+      "name": "Yusna",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T18:58:58.353Z",
+      "updatedAt": "2026-09-15T20:30:36.331Z"
+    },
+    "6285283857873": {
+      "phone": "6285283857873",
+      "name": "Saras",
+      "role": "P.SHIFT",
+      "addedAt": "2026-09-12T18:58:58.357Z",
+      "updatedAt": "2026-09-15T20:30:36.344Z"
+    }
+  }
+}

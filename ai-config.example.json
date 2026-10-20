@@ -1,0 +1,25 @@
+{
+  "_comment": "Config AI untuk Fase D. Isi baseUrl + apiKey + model, lalu restart bot.",
+  "_examples": {
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "sk-or-v1-...",
+      "model": "anthropic/claude-3.5-haiku"
+    },
+    "9router_lokal": {
+      "baseUrl": "http://localhost:PORT/v1",
+      "apiKey": "your-key-or-empty",
+      "model": "gpt-4o-mini"
+    },
+    "ollama_lokal": {
+      "baseUrl": "http://localhost:11434/v1",
+      "apiKey": "",
+      "model": "llama3.2"
+    }
+  },
+  "baseUrl": "",
+  "apiKey": "",
+  "model": "",
+  "timeoutMs": 12000,
+  "enabled": false
+}

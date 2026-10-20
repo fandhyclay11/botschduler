@@ -1,0 +1,246 @@
+[2026-09-28 23:29:11] ============================================================
+[2026-09-28 23:29:11] MENJALANKAN index.js | node=C:\Program Files\nodejs\node.exe | peluncur PID 5884 | cwd C:\bot schdulerfinal22222221
+👥 Access Control: 1 admin, 8 user.
+WhatsApp Web Version: 2.3000.1048631746
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-28T15:29:24.178Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+👤 Identity: jid=239058097827896@lid | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=6282345085382@s.whatsapp.net | participant=-
+📩 Pesan masuk: Ai ping
+[2026-09-28T15:29:24.810Z] [PHASE-D] [INFO] ping start | enabled=true baseUrl=https://api.amanai.dev/v1 model=amanai/deepseek-v4-flash key=sk-a…d10 timeout=12000ms
+[2026-09-28T15:29:27.463Z] [PHASE-D] [OK] chat sukses | attempt=1 chars=4
+[2026-09-28T15:29:27.464Z] [PHASE-D] [INFO] ping result | ok=true text=PONG
+👤 Identity: jid=239058097827896@lid | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=6282345085382@s.whatsapp.net | participant=-
+📩 Pesan masuk: Ai ping
+[2026-09-28T16:08:47.114Z] [PHASE-D] [INFO] ping start | enabled=true baseUrl=https://api.amanai.dev/v1 model=amanai/deepseek-v4-flash key=sk-a…d10 timeout=12000ms
+[2026-09-28T16:08:49.069Z] [PHASE-D] [OK] chat sukses | attempt=1 chars=4
+[2026-09-28T16:08:49.070Z] [PHASE-D] [INFO] ping result | ok=true text=PONG
+Closing session: SessionEntry {
+  _chains: {
+    'BTZkWscWRzCgrfPVhtFPUiGHasfD3+ey/LWeMMRO14Zh': { chainKey: [Object], chainType: 2, messageKeys: {} },
+    'BVkqWBjt75zsbmLxgT44iJC/qzM8EFZDBiX9gt3z/3lC': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 1354135839,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 59 2a 58 18 ed ef 9c ec 6e 62 f1 81 3e 38 88 90 bf ab 33 3c 10 56 43 06 25 fd 82 dd f3 ff 79 42>,
+      privKey: <Buffer 70 e3 7a d6 7b af c5 5e 57 e2 17 d4 3b 4e 3c 83 19 9f 5e 5e f1 9c 68 13 a3 57 46 a6 2f d0 88 67>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 36 64 5a c7 16 47 30 a0 ad f3 d5 86 d1 4f 52 21 87 6a c7 c3 df e7 b2 fc b5 9e 30 c4 4e d7 86 61>,
+    previousCounter: 0,
+    rootKey: <Buffer 74 a1 dc e1 a2 b5 65 72 4b 1d f7 97 0f 48 dc c3 c2 14 0b 30 13 ce 7d 09 2f 5b e3 6a c0 f5 d1 bc>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 81 b2 e0 f8 87 be c7 8c e1 d2 1c 50 17 18 89 ae 02 50 fd 7d ce 64 72 60 f3 64 d5 df b8 9d e4 40>,
+    baseKeyType: 2,
+    closed: -1,
+    used: 1788900783243,
+    created: 1788900783243,
+    remoteIdentityKey: <Buffer 05 1a 02 c2 15 b2 a3 a8 d0 ce 99 eb 8d 69 e4 aa 38 ce bc 2f b6 56 d0 f7 38 01 2d 2a b9 24 53 01 52>
+  }
+}
+👤 Identity: jid=status@broadcast | raw=6282193632393@s.whatsapp.net | phone=6282193632393 | alt=6282193632393@s.whatsapp.net | participant=56938616332416@lid
+Closing session: SessionEntry {
+  _chains: {
+    'BW3G8hsuqq+TDXfqqlX4ZCaTY3AfJ2rtHpje1vfwquk9': { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 1654544339,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 6d c6 f2 1b 2e aa af 93 0d 77 ea aa 55 f8 64 26 93 63 70 1f 27 6a ed 1e 98 de d6 f7 f0 aa e9 3d>,
+      privKey: <Buffer 98 0f 0a af d3 07 bb 79 5d a2 bc 6f bf 07 82 41 96 ee 07 69 5f 90 8d f7 96 31 e7 6c f6 d4 63 4b>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 22 80 dd 27 d7 65 a2 23 b7 c0 4e d3 cc 04 83 dc 74 2f e5 21 00 c5 4f 1a 01 81 64 e5 9e 96 a2 01>,
+    previousCounter: 0,
+    rootKey: <Buffer 45 91 bf 1a 5c b1 5a cd a3 58 4c 76 55 64 61 67 32 db 86 7f 39 bb 60 34 49 92 82 09 27 cd 55 8a>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 a0 84 71 3f 62 52 14 0a 3f 09 6e c4 ac 4e eb 37 42 a4 df 11 2e 10 69 35 14 90 5c 64 53 00 46 09>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1790614974131,
+    created: 1790614974131,
+    remoteIdentityKey: <Buffer 05 d3 b7 7a 3a 98 d4 1d da 1f 23 dc 9b 05 cd 5c b3 0f 1e b0 8e 4a 5f f9 4e 96 2e 58 dc d4 49 0b 1a>
+  },
+  pendingPreKey: {
+    signedKeyId: 4625397,
+    baseKey: <Buffer 05 a0 84 71 3f 62 52 14 0a 3f 09 6e c4 ac 4e eb 37 42 a4 df 11 2e 10 69 35 14 90 5c 64 53 00 46 09>
+  }
+}
+🔄 Koneksi terputus, mencoba kembali...
+WhatsApp Web Version: 2.3000.1048638736
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-28T18:24:30.951Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+🔄 Koneksi terputus, mencoba kembali...
+WhatsApp Web Version: 2.3000.1048653945
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-28T19:46:21.670Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+🔄 Koneksi terputus, mencoba kembali...
+WhatsApp Web Version: 2.3000.1048663002
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-28T21:59:56.412Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+[2026-09-28T22:30:03.157Z] [QUEUE] Delivery disiapkan: REM-1790290503612-2026-09-29-6G97QZ | jadwal=06:30, kirim=06.33.23
+[2026-09-28T22:30:03.159Z] [QUEUE] Delivery disiapkan: REM-1790290803850-2026-09-29-0BWNUM | jadwal=06:30, kirim=06.31.21
+[2026-09-28T22:30:03.159Z] [QUEUE] Delivery disiapkan: REM-1790291091704-2026-09-29-TGHRSS | jadwal=06:30, kirim=06.34.39
+[2026-09-28T22:31:23.361Z] [QUEUE] Masuk antrean: REM-1790290803850-2026-09-29-0BWNUM | panjang=1
+[2026-09-28T22:31:23.365Z] [SEND] Mengirim REM-1790290803850-2026-09-29-0BWNUM | attempt=1, chat=120363179980589367@g.us
+[2026-09-28T22:31:26.474Z] [SUCCESS] Terkirim REM-1790290803850-2026-09-29-0BWNUM | messageId=3EB04FE70BBBEFD276FFC4
+[2026-09-28T22:33:23.579Z] [QUEUE] Masuk antrean: REM-1790290503612-2026-09-29-6G97QZ | panjang=1
+[2026-09-28T22:33:23.584Z] [SEND] Mengirim REM-1790290503612-2026-09-29-6G97QZ | attempt=1, chat=120363043475977080@g.us
+[2026-09-28T22:33:25.974Z] [SUCCESS] Terkirim REM-1790290503612-2026-09-29-6G97QZ | messageId=3EB0FB1AE21F48D54CA976
+[2026-09-28T22:34:43.768Z] [QUEUE] Masuk antrean: REM-1790291091704-2026-09-29-TGHRSS | panjang=1
+[2026-09-28T22:34:43.773Z] [SEND] Mengirim REM-1790291091704-2026-09-29-TGHRSS | attempt=1, chat=120363179488443555@g.us
+[2026-09-28T22:34:44.787Z] [SUCCESS] Terkirim REM-1790291091704-2026-09-29-TGHRSS | messageId=3EB0BA3489DACEF023415D
+[2026-09-28T23:03:01.943Z] [QUEUE] Delivery disiapkan: REM-1789397063435-2026-09-29-DAU2L9 | jadwal=07:03, kirim=07.06.16
+[2026-09-28T23:06:17.334Z] [QUEUE] Masuk antrean: REM-1789397063435-2026-09-29-DAU2L9 | panjang=1
+[2026-09-28T23:06:17.338Z] [SEND] Mengirim REM-1789397063435-2026-09-29-DAU2L9 | attempt=1, chat=120363140544703192@g.us
+[2026-09-28T23:06:18.362Z] [PHASE-C] [OCC] Occurrence tercatat | key=1789397063435:2026-09-29 msg=3EB06A5A6E4EFEBBB73E17
+[2026-09-28T23:06:18.362Z] [SUCCESS] Terkirim REM-1789397063435-2026-09-29-DAU2L9 | messageId=3EB06A5A6E4EFEBBB73E17
+🔄 Koneksi terputus, mencoba kembali...
+WhatsApp Web Version: 2.3000.1048680055
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-28T23:21:22.695Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+👤 Identity: jid=120363043475977080@g.us | raw=6282190754462@s.whatsapp.net | phone=6282190754462 | alt=- | participant=199295240302766@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282190754462@s.whatsapp.net | phone=6282190754462 | alt=- | participant=199295240302766@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+[2026-09-28T23:36:35.911Z] [PHASE-C] [POINTS] +10 poin | user=6282345085382 name="Admin Utama" total=55
+[2026-09-28T23:36:35.911Z] [PHASE-C] [REACT] Tugas diselesaikan +10 | occ=1789397063435:2026-09-29 user=6282345085382 name="Admin Utama"
+👤 Identity: jid=120363043475977080@g.us | raw=6285343708512@s.whatsapp.net | phone=6285343708512 | alt=- | participant=80724564652070@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285343708512@s.whatsapp.net | phone=6285343708512 | alt=- | participant=80724564652070@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6281355049238@s.whatsapp.net | phone=6281355049238 | alt=- | participant=106145905659924@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6281355049238@s.whatsapp.net | phone=6281355049238 | alt=- | participant=106145905659924@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282320681715@s.whatsapp.net | phone=6282320681715 | alt=- | participant=59313649365089@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6281240154185@s.whatsapp.net | phone=6281240154185 | alt=- | participant=249516259291221@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282293506266@s.whatsapp.net | phone=6282293506266 | alt=- | participant=15126941937745@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282293506266@s.whatsapp.net | phone=6282293506266 | alt=- | participant=15126941937745@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6285283857873@s.whatsapp.net | phone=6285283857873 | alt=- | participant=81565925294165@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6285283857873@s.whatsapp.net | phone=6285283857873 | alt=- | participant=81565925294165@lid
+[2026-09-28T23:54:21.839Z] [PHASE-C] [POINTS] +10 poin | user=6285283857873 name="Saras" total=114
+[2026-09-28T23:54:21.840Z] [PHASE-C] [REACT] Tugas diselesaikan +10 | occ=1789397063435:2026-09-29 user=6285283857873 name="Saras"
+🔄 Koneksi terputus, mencoba kembali...
+WhatsApp Web Version: 2.3000.1048699228
+
+================================
+✅ BOT BERHASIL TERHUBUNG!
+================================
+
+⏰ Mesin reminder aktif.
+⏱️ Reminder dicek setiap 5 detik.
+🎲 Delay pengiriman: +1-5 menit dari jadwal.
+🚦 Rate limiter: minimal 8 detik antar pesan terjadwal.
+🔁 Retry terkendali: maksimal 3 percobaan.
+[2026-09-29T00:10:38.546Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+📊 Fase C: report scheduler aktif.
+👤 Identity: jid=120363043475977080@g.us | raw=6285394559026@s.whatsapp.net | phone=6285394559026 | alt=- | participant=259935816409161@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285394559026@s.whatsapp.net | phone=6285394559026 | alt=- | participant=259935816409161@lid
+👤 Identity: jid=120363179488443555@g.us | raw=6281525843849@s.whatsapp.net | phone=6281525843849 | alt=- | participant=89816859447351@lid
+👤 Identity: jid=120363179980589367@g.us | raw=6281525843849@s.whatsapp.net | phone=6281525843849 | alt=- | participant=89816859447351@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285211061447@s.whatsapp.net | phone=6285211061447 | alt=- | participant=134712119054348@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285211061447@s.whatsapp.net | phone=6285211061447 | alt=- | participant=134712119054348@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282350181562@s.whatsapp.net | phone=6282350181562 | alt=- | participant=163475464683682@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282350181562@s.whatsapp.net | phone=6282350181562 | alt=- | participant=163475464683682@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285211044606@s.whatsapp.net | phone=6285211044606 | alt=- | participant=55164778066076@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285211044606@s.whatsapp.net | phone=6285211044606 | alt=- | participant=55164778066076@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285751653012@s.whatsapp.net | phone=6285751653012 | alt=- | participant=220989472395478@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6285751653012@s.whatsapp.net | phone=6285751653012 | alt=- | participant=220989472395478@lid
+[2026-09-29T01:00:03.974Z] [QUEUE] Delivery disiapkan: REM-1789505558748-2026-09-29-QWGVQC | jadwal=09:00, kirim=09.01.47
+[2026-09-29T01:01:49.186Z] [QUEUE] Masuk antrean: REM-1789505558748-2026-09-29-QWGVQC | panjang=1
+[2026-09-29T01:01:49.191Z] [SEND] Mengirim REM-1789505558748-2026-09-29-QWGVQC | attempt=1, chat=120363140544703192@g.us
+[2026-09-29T01:01:50.023Z] [PHASE-C] [OCC] Occurrence tercatat | key=1789505558748:2026-09-29 msg=3EB024109CD52FF148338C
+[2026-09-29T01:01:50.024Z] [SUCCESS] Terkirim REM-1789505558748-2026-09-29-QWGVQC | messageId=3EB024109CD52FF148338C
+👤 Identity: jid=120363140544703192@g.us | raw=6285334118789@s.whatsapp.net | phone=6285334118789 | alt=- | participant=65704527188064@lid
+[2026-09-29T01:06:08.793Z] [PHASE-C] [POINTS] +10 poin | user=6285334118789 name="Faris mardana" total=124
+[2026-09-29T01:06:08.793Z] [PHASE-C] [REACT] Tugas diselesaikan +10 | occ=1789397063435:2026-09-29 user=6285334118789 name="Faris mardana"
+[2026-09-29T01:15:00.756Z] [QUEUE] Delivery disiapkan: REM-1790303063948-2026-09-29-909SR5 | jadwal=09:15, kirim=09.17.08
+[2026-09-29T01:17:11.022Z] [QUEUE] Masuk antrean: REM-1790303063948-2026-09-29-909SR5 | panjang=1
+[2026-09-29T01:17:11.027Z] [SEND] Mengirim REM-1790303063948-2026-09-29-909SR5 | attempt=1, chat=120363140544703192@g.us
+[2026-09-29T01:17:11.880Z] [PHASE-C] [OCC] Occurrence tercatat | key=1790303063948:2026-09-29 msg=3EB019A0A239ECFCE9038A
+[2026-09-29T01:17:11.882Z] [SUCCESS] Terkirim REM-1790303063948-2026-09-29-909SR5 | messageId=3EB019A0A239ECFCE9038A
+👤 Identity: jid=120363043475977080@g.us | raw=6282291224144@s.whatsapp.net | phone=6282291224144 | alt=- | participant=275294585942185@lid
+👤 Identity: jid=120363043475977080@g.us | raw=6282291224144@s.whatsapp.net | phone=6282291224144 | alt=- | participant=275294585942185@lid
+👤 Identity: jid=120363043475977080@g.us | raw=62895379770003@s.whatsapp.net | phone=62895379770003 | alt=- | participant=132251236982864@lid
+👤 Identity: jid=120363043475977080@g.us | raw=62895379770003@s.whatsapp.net | phone=62895379770003 | alt=- | participant=132251236982864@lid
+👤 Identity: jid=120363262164541564@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363262164541564@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=status@broadcast | raw=6282193632393@s.whatsapp.net | phone=6282193632393 | alt=6282193632393@s.whatsapp.net | participant=56938616332416@lid
+[2026-09-29T02:05:01.248Z] [QUEUE] Delivery disiapkan: REM-1789397814245-2026-09-29-65XV6M | jadwal=10:05, kirim=10.09.59
+[2026-09-29T02:10:01.765Z] [QUEUE] Masuk antrean: REM-1789397814245-2026-09-29-65XV6M | panjang=1
+[2026-09-29T02:10:01.769Z] [SEND] Mengirim REM-1789397814245-2026-09-29-65XV6M | attempt=1, chat=120363140544703192@g.us
+[2026-09-29T02:10:02.627Z] [PHASE-C] [OCC] Occurrence tercatat | key=1789397814245:2026-09-29 msg=3EB006F49BF802404816FE
+[2026-09-29T02:10:02.628Z] [SUCCESS] Terkirim REM-1789397814245-2026-09-29-65XV6M | messageId=3EB006F49BF802404816FE
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363202114983046@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363202114983046@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+[2026-09-29T02:28:56.088Z] [PHASE-C] [POINTS] +5 poin | user=6282345085382 name="Admin Utama" total=60
+[2026-09-29T02:28:56.089Z] [PHASE-C] [REACT] Tugas diselesaikan +5 | occ=1790303063948:2026-09-29 user=6282345085382 name="Admin Utama"
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+[2026-09-29T02:29:04.691Z] [PHASE-C] [POINTS] +3 poin | user=6282345085382 name="Admin Utama" total=63
+[2026-09-29T02:29:04.692Z] [PHASE-C] [REACT] Tugas diselesaikan +3 | occ=1789505558748:2026-09-29 user=6282345085382 name="Admin Utama"
+👤 Identity: jid=120363179980589367@g.us | raw=6281217850855@s.whatsapp.net | phone=6281217850855 | alt=- | participant=250027242995967@lid
+👤 Identity: jid=120363179980589367@g.us | raw=6281217850855@s.whatsapp.net | phone=6281217850855 | alt=- | participant=250027242995967@lid
+👤 Identity: jid=120363179488443555@g.us | raw=6281217850855@s.whatsapp.net | phone=6281217850855 | alt=- | participant=250027242995967@lid
+👤 Identity: jid=120363179488443555@g.us | raw=6281217850855@s.whatsapp.net | phone=6281217850855 | alt=- | participant=250027242995967@lid
+👤 Identity: jid=120363140544703192@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+[2026-09-29T02:52:45.388Z] [PHASE-C] [POINTS] +10 poin | user=6282345085382 name="Admin Utama" total=73
+[2026-09-29T02:52:45.388Z] [PHASE-C] [REACT] Tugas diselesaikan +10 | occ=1789397814245:2026-09-29 user=6282345085382 name="Admin Utama"
+👤 Identity: jid=120363294982736045@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
+👤 Identity: jid=120363294982736045@g.us | raw=6282345085382@s.whatsapp.net | phone=6282345085382 | alt=- | participant=239058097827896@lid
