@@ -1807,3 +1807,135 @@
 [2026-10-20T19:11:23.567Z] [PHASE-C] [REACT] Tugas diselesaikan +2 | occ=1792348828449:2026-10-20 user=6282345085382 name="Admin Utama"
 [2026-10-20T19:11:31.360Z] [PHASE-C] [POINTS] +2 poin | user=6282345085382 name="Admin Utama" total=143
 [2026-10-20T19:11:31.361Z] [PHASE-C] [REACT] Tugas diselesaikan +2 | occ=1792348828449:2026-10-21 user=6282345085382 name="Admin Utama"
+[2026-10-20T19:27:27.798Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:27:27.815Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:27:27.828Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=65
+[2026-10-20T19:27:27.860Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=80
+[2026-10-20T19:27:27.896Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=80
+[2026-10-20T19:27:28.207Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:27:28.269Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:27:28.335Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:27:28.340Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:27:28.346Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:28:32.088Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:28:32.133Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:28:32.144Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=105
+[2026-10-20T19:28:32.160Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=120
+[2026-10-20T19:28:32.168Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=120
+[2026-10-20T19:28:32.180Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:28:32.188Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:28:32.201Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:28:32.205Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:28:32.211Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:32:52.660Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+[2026-10-20T19:34:58.321Z] [PHASE-C] [TASK] Task dibuat | id=1792524898541 points=5 chat=120363354475786105@g.us
+[2026-10-20T19:34:58.364Z] [PHASE-C] [FLOW] Task registered | id=1792524898541 chat=120363354475786105@g.us points=5
+[2026-10-20T19:38:09.546Z] [PHASE-C] [OCC] Occurrence tercatat | key=1792524898541:2026-10-21 msg=3EB010587A510404441A29
+[2026-10-20T19:38:46.048Z] [PHASE-C] [POINTS] +5 poin | user=6282345085382 name="Admin Utama" total=148
+[2026-10-20T19:38:46.052Z] [PHASE-C] [REACT] Tugas diselesaikan +5 | occ=1792524898541:2026-10-21 user=6282345085382 name="Admin Utama"
+[2026-10-20T19:40:58.062Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+[2026-10-20T19:53:31.548Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:53:31.573Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:53:31.584Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=65
+[2026-10-20T19:53:31.593Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=80
+[2026-10-20T19:53:31.598Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=80
+[2026-10-20T19:53:31.608Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:53:31.669Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:53:31.678Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:53:31.684Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:53:31.693Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:53:41.809Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:53:41.828Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:53:41.848Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=105
+[2026-10-20T19:53:41.851Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=120
+[2026-10-20T19:53:41.854Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=120
+[2026-10-20T19:53:41.864Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:53:41.869Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:53:41.876Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:53:41.887Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:53:41.891Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:53:50.817Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:53:50.836Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:53:50.844Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=145
+[2026-10-20T19:53:50.850Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=160
+[2026-10-20T19:53:50.855Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=160
+[2026-10-20T19:53:50.868Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:53:50.875Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:53:50.884Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:53:50.890Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:53:50.894Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:54:00.024Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:54:00.038Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:54:00.046Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=185
+[2026-10-20T19:54:00.049Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=200
+[2026-10-20T19:54:00.052Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=200
+[2026-10-20T19:54:00.064Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:54:00.069Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:54:00.076Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:54:00.080Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:54:00.084Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:55:00.256Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T19:55:00.280Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T19:55:00.302Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=225
+[2026-10-20T19:55:00.309Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=240
+[2026-10-20T19:55:00.316Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=240
+[2026-10-20T19:55:00.336Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T19:55:00.347Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T19:55:00.359Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T19:55:00.365Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T19:55:00.370Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T19:56:34.816Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+[2026-10-20T20:02:07.488Z] [PHASE-C] [OCC] Occurrence tercatat | key=1792524898541:2026-10-21 msg=3EB05F49629A2DFC663E11
+[2026-10-20T20:32:15.099Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T20:32:15.111Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T20:32:15.118Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=265
+[2026-10-20T20:32:15.121Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=280
+[2026-10-20T20:32:15.125Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=280
+[2026-10-20T20:32:15.133Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T20:32:15.139Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T20:32:15.145Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T20:32:15.148Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T20:32:15.153Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T20:34:42.316Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T20:34:42.335Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T20:34:42.347Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=305
+[2026-10-20T20:34:42.350Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=320
+[2026-10-20T20:34:42.357Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=320
+[2026-10-20T20:34:42.365Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T20:34:42.371Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T20:34:42.378Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T20:34:42.382Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T20:34:42.387Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T20:36:21.227Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+[2026-10-20T20:50:04.748Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T20:50:04.764Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T20:50:04.775Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=345
+[2026-10-20T20:50:04.781Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=360
+[2026-10-20T20:50:04.785Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=360
+[2026-10-20T20:50:04.794Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T20:50:04.800Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T20:50:04.811Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T20:50:04.816Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T20:50:04.822Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T20:52:07.844Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T20:52:07.862Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T20:52:07.876Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=385
+[2026-10-20T20:52:07.881Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=400
+[2026-10-20T20:52:07.887Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=400
+[2026-10-20T20:52:07.899Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T20:52:07.906Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T20:52:07.916Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T20:52:07.922Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T20:52:07.927Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T21:10:30.142Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min
+[2026-10-20T21:59:03.567Z] [PHASE-C] [TASK] Task dibuat | id=999999 points=10 chat=120000@g.us
+[2026-10-20T21:59:03.589Z] [PHASE-C] [OCC] Occurrence tercatat | key=999999:2026-09-09 msg=MSG_TEST_1
+[2026-10-20T21:59:03.601Z] [PHASE-C] [POINTS] +25 poin | user=62811 name="Budi" total=425
+[2026-10-20T21:59:03.607Z] [PHASE-C] [POINTS] +40 poin | user=62822 name="Siti" total=440
+[2026-10-20T21:59:03.612Z] [PHASE-C] [POINTS] +15 poin | user=62811 name="Budi" total=440
+[2026-10-20T21:59:03.620Z] [PHASE-C] [REPORT] Report group ditambah | id=120001@g.us name=Grup Laporan A
+[2026-10-20T21:59:03.626Z] [PHASE-C] [REPORT] Report time ditambah | hhmm=14:00
+[2026-10-20T21:59:03.635Z] [PHASE-C] [REPORT] Report group dihapus | id=120001@g.us
+[2026-10-20T21:59:03.639Z] [PHASE-C] [REPORT] Report time dihapus | hhmm=14:00
+[2026-10-20T21:59:03.645Z] [PHASE-C] [TASK] Task meta dihapus | id=999999
+[2026-10-20T22:02:13.168Z] [PHASE-C] [REPORT] Report scheduler start | interval=30s grace=3min

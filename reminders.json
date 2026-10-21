@@ -235,21 +235,6 @@
     "lastActualDelayMs": 222439
   },
   {
-    "id": 1792348828449,
-    "chatId": "120363354475786105@g.us",
-    "time": "03:18",
-    "text": "ganti fitur",
-    "recurrence": "daily",
-    "ownerJid": "239058097827896@lid",
-    "lastSent": "2026-10-21",
-    "lastTemplateIndex": 3,
-    "lastMessageId": "3EB0150ABDF160999B60DF",
-    "lastDeliveryId": "REM-1792348828449-2026-10-21-Z8GHMT",
-    "lastScheduledAt": "2026-10-20T18:39:00.000Z",
-    "lastSentAt": "2026-10-20T18:41:04.280Z",
-    "lastActualDelayMs": 124280
-  },
-  {
     "id": 1792474926142,
     "chatId": "120363043475977080@g.us",
     "time": "06:30",

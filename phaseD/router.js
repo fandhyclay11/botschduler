@@ -18,51 +18,200 @@
 
 import { phaseDLog } from './client.js';
 import { upsertMember, getRoles } from '../phaseC/roster.js';
+import { hasRequiredParams, missingParamQuestion } from './nlNormalize.js';
 
 const CONFIDENCE_EXEC = 0.75;
 const CONFIDENCE_ASK = 0.55;
 
-// AI hanya menentukan intent/parameter. Untuk isi jadwal/tugas, jangan
-// memakai teks hasil rewrite AI sebagai sumber utama karena model dapat
-// meringkas atau memotong isi asli. Isi diambil kembali dari pesan user.
+// AI hanya menentukan intent/parameter metadata (waktu, pengulangan, poin).
+// Untuk isi jadwal/tugas, JANGAN memakai teks hasil rewrite AI karena model
+// dapat meringkas, memparafrasekan, menormalkan huruf besar/kecil,
+// menghapus emoji/bullet/line break, atau membuang bagian pesan.
+//
+// Strategi:
+//   1. Ambil metadata (recurrence + waktu) dari aiSchedule (atau dari rawText
+//      bila aiSchedule kosong/ambigu).
+//   2. Tentukan ambang akhir "baris metadata" di rawText, lalu salin SELURUH
+//      sisa teks setelah ambang itu PERSIS seperti user mengetiknya
+//      (line break, emoji, bullet, tanda bintang WA tetap utuh).
+//   3. Jika baris metadata dan isi pesan berada di baris yang sama (user
+//      mengetik satu kalimat tanpa baris baru), isi diambil setelah token
+//      waktu terakhir di baris itu — tetap tanpa perubahan karakter.
+//   4. Jika tidak ada petunjuk waktu yang jelas di rawText → return null →
+//      caller akan minta klarifikasi, BUKAN pakai hasil AI yang berisiko
+//      sudah diringkas.
+//
+// Deklarasi poin ("poin 10" / "10 poin" / "nilai 10 poin") hanya dibuang
+// bila berada di BARIS METADATA (baris pertama bersama waktu). Jika
+// penulisan poin ada di dalam isi pesan tugas, biarkan apa adanya.
 function recoverOriginalSchedule(rawText, aiSchedule, isTask = false) {
-    const raw = String(rawText || '').replace(/\r\n?/g, '\n').trim();
+    const raw = String(rawText || '').replace(/\r\n?/g, '\n');
+    const rawTrim = raw.trim();
     const ai = String(aiSchedule || '').trim();
-    if (!raw) return ai;
+    if (!rawTrim) return ai || null;
 
-    // PRIORITAS MUTLAK: bila user menulis pola
-    // "... setiap [hari/tanggal] [jam] <isi>" maka isi setelah waktu
-    // diambil 100% dari pesan asli. AI hanya boleh menentukan intent,
-    // recurrence, waktu, dan poin. AI tidak boleh menulis ulang isi.
-    const marker = raw.match(/\bsetiap\s+(hari|tanggal\s+\d{1,2}|[a-zA-ZÀ-ÿ'’]+(?:\s*,\s*[a-zA-ZÀ-ÿ'’]+)*)\s+(?:jam\s+)?(\d{1,2}:\d{2})\b/i);
-    if (marker) {
-        const markerEnd = marker.index + marker[0].length;
-        let body = raw.slice(markerEnd).replace(/^\s+/, '').trim();
+    // --- 1. Ekstrak metadata (recurrence + HH:MM) ---
+    //
+    // Prioritaskan recurrence/waktu yang eksplisit di rawText agar bot
+    // tidak terjebak pada hasil AI yang mungkin salah mengartikan waktu.
 
-        // Poin adalah metadata tugas, bukan bagian isi. Hanya buang deklarasi
-        // poin di ujung pesan; semua isi lainnya dipertahankan persis.
-        if (isTask) {
-            body = body
-                .replace(/(?:\s*[,;\-–—]\s*)?(?:nilai\s*)?\d+\s*poin\s*$/i, '')
-                .replace(/(?:\s*[,;\-–—]\s*)?(?:poin\s*[:=]?\s*)\d+\s*$/i, '')
-                .trim();
-        }
+    // Deteksi recurrence di rawText.
+    const recurrenceRe = /\b(setiap|tiap)\s+(hari|tanggal\s+\d{1,2}|(?:senin|selasa|rabu|kamis|jum[’'`]?at|sabtu|minggu|ahad)(?:\s*,\s*(?:senin|selasa|rabu|kamis|jum[’'`]?at|sabtu|minggu|ahad))*)\b/i;
+    const recMatchRaw = rawTrim.match(recurrenceRe);
 
-        if (body) {
-            // Gunakan format recurrence + waktu dari bagian asli. Ini menjaga
-            // seluruh line break, judul, bullet, tanda baca, dan isi lainnya.
-            const recurrencePart = marker[0]
-                .replace(/\bjam\s+/i, '')
-                .trim();
-            return `${recurrencePart} ${body}`.trim();
+    // Deteksi SELURUH kemunculan waktu di rawText untuk cek konflik.
+    const timeRe = /\b(?:jam\s+|pukul\s+)?(\d{1,2})[:.](\d{2})\b/gi;
+    const timesInRaw = [];
+    let tm;
+    const scanText = rawTrim;
+    while ((tm = timeRe.exec(scanText)) !== null) {
+        const hh = Number(tm[1]);
+        const mm = Number(tm[2]);
+        if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+            timesInRaw.push({
+                index: tm.index,
+                match: tm[0],
+                hhmm: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+            });
         }
     }
 
-    // Fallback untuk kalimat natural yang menaruh isi sebelum kata "setiap".
-    // Dalam kasus ini AI tetap dipakai untuk membentuk schedule karena posisi
-    // isi dan recurrence membutuhkan pemahaman bahasa.
-    return ai;
+    // Fallback metadata dari aiSchedule.
+    const aiMatch = ai.match(/^(setiap\s+(?:hari|tanggal\s+\d{1,2}|[a-zA-ZÀ-ÿ'’,\s]+?))\s+(\d{1,2}:\d{2})/i);
+    const aiRecurrencePart = aiMatch ? aiMatch[1].trim() : '';
+    const aiTime = aiMatch ? aiMatch[2] : '';
+
+    // Posisi "baris metadata" di rawText. Preferensi:
+    //   - Jika rawText memuat recurrence + waktu berdekatan (dalam 40 char),
+    //     ambil akhir match waktu pertama setelah recurrence.
+    //   - Jika hanya ada waktu (tanpa kata "setiap"), ambil akhir waktu
+    //     pertama di baris pertama saja (bukan waktu yang ada di dalam isi
+    //     pesan di baris berikutnya).
+    //   - Jika tidak ada waktu sama sekali di rawText → return null.
+    let metadataEnd = -1;
+    let timeHHMM = '';
+    let recurrencePart = '';
+
+    if (recMatchRaw) {
+        const recEnd = recMatchRaw.index + recMatchRaw[0].length;
+        // Cari waktu PERTAMA setelah recurrence, tanpa jeda baris baru.
+        const near = timesInRaw.find(t =>
+            t.index >= recEnd &&
+            t.index - recEnd <= 40 &&
+            !rawTrim.slice(recEnd, t.index).includes('\n')
+        );
+        if (near) {
+            metadataEnd = near.index + near.match.length;
+            timeHHMM = near.hhmm;
+            recurrencePart = recMatchRaw[0]
+                .replace(/\btiap\b/i, 'setiap')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+    }
+
+    if (metadataEnd === -1 && timesInRaw.length > 0) {
+        // Tidak ada kata "setiap" → gunakan waktu pertama di BARIS PERTAMA.
+        const firstLineEnd = rawTrim.indexOf('\n');
+        const firstLineLimit = firstLineEnd === -1 ? rawTrim.length : firstLineEnd;
+        const firstLineTime = timesInRaw.find(t => t.index < firstLineLimit);
+        if (firstLineTime) {
+            metadataEnd = firstLineTime.index + firstLineTime.match.length;
+            timeHHMM = firstLineTime.hhmm;
+            // Ambil recurrencePart dari aiSchedule bila valid, jika tidak
+            // default ke "setiap hari" (bot hanya mendukung recurrence).
+            recurrencePart = aiRecurrencePart || 'setiap hari';
+        }
+    }
+
+    if (metadataEnd === -1) {
+        // Tidak ada waktu valid di rawText → jangan tebak, biar caller
+        // minta klarifikasi. Fallback ke AI schedule juga tidak aman.
+        return null;
+    }
+
+    // --- 2. Deteksi konflik waktu di SEGMEN metadata (ambigu) ---
+    //
+    // Hanya waktu yang berada SEBELUM/TEPAT di metadataEnd yang dianggap
+    // bagian metadata. Waktu yang muncul di dalam isi pesan (setelah
+    // metadataEnd) sepenuhnya bagian body dan BOLEH ada tanpa dianggap
+    // konflik. Jadi konflik hanya terjadi jika di depan metadataEnd ada
+    // lebih dari satu waktu berbeda yang berdekatan (misal user menulis
+    // "setiap hari 08:00 09:00 briefing" → tidak jelas pilih yang mana).
+    const timesBeforeMetadataEnd = timesInRaw.filter(t =>
+        (t.index + t.match.length) <= metadataEnd
+    );
+    const distinctTimes = new Set(timesBeforeMetadataEnd.map(t => t.hhmm));
+    if (distinctTimes.size > 1) {
+        return { __ambiguous: 'multiple-times', times: Array.from(distinctTimes) };
+    }
+
+    // Juga anggap ambigu bila ada waktu kedua di baris pertama yang sangat
+    // dekat (dalam 10 karakter) setelah waktu metadata — kemungkinan user
+    // mengetik dua waktu di baris metadata secara berurutan. Tapi bila
+    // waktu kedua terletak setelah kata (misal "08:00 briefing jam 09:00"
+    // di satu baris), anggap bagian isi.
+    const firstLineEndIdx = rawTrim.indexOf('\n');
+    const firstLineRange = firstLineEndIdx === -1 ? rawTrim.length : firstLineEndIdx;
+    const timesInFirstLineAfterMeta = timesInRaw.filter(t =>
+        t.index >= metadataEnd && t.index < firstLineRange
+    );
+    for (const t of timesInFirstLineAfterMeta) {
+        const gap = rawTrim.slice(metadataEnd, t.index).trim();
+        if (!gap && t.hhmm !== timeHHMM) {
+            return { __ambiguous: 'multiple-times', times: [timeHHMM, t.hhmm] };
+        }
+    }
+
+    // --- 3. Ambil body = teks setelah metadata, PERSIS seperti aslinya ---
+    //
+    // Pertahankan line break, spasi di awal baris bullet, emoji, format WA.
+    // Hanya buang whitespace horizontal awal baris pertama (karena biasanya
+    // ada 1-2 spasi antara metadata dan isi) dan trailing whitespace.
+    let body = raw.slice(metadataEnd);
+    // Hapus hanya separator ringan di awal (spasi / tab) tapi JANGAN hapus
+    // baris baru pertama — itu bagian format pesan user.
+    body = body.replace(/^[ \t]+/, '');
+    // Jika sisa diawali ": " atau "- " yang berfungsi memisahkan metadata
+    // dari isi, pertahankan karena bisa saja memang format user. Konservatif.
+    // Jangan trim trailing agar emoji/newline di akhir tidak hilang; cukup
+    // buang whitespace tak terlihat di ujung (hanya spasi/tab di belakang).
+    body = body.replace(/[ \t]+$/g, '');
+
+    // Buang deklarasi poin HANYA bila berada di baris metadata (sebelum
+    // body dimulai) — bukan di dalam isi pesan. Karena body sudah dipotong
+    // dari setelah metadataEnd, deklarasi poin di baris metadata sudah
+    // otomatis tidak ikut. Namun ada kasus user menulis "poin 10" SETELAH
+    // waktu tapi sebelum isi (contoh: "setiap hari 06:19 poin 10\nIsi...").
+    // Hilangkan HANYA jika ada di awal body dan diikuti separator newline
+    // atau akhir baris metadata.
+    const pointsLeadRe = /^\s*(?:[,;:\-–—]\s*)?(?:poin\s*[:=]?\s*\d+|\d+\s*poin|nilai\s*\d+\s*poin)\s*(?=\n|$)/i;
+    body = body.replace(pointsLeadRe, '');
+    // Juga hapus bila diikuti separator kecil lalu newline.
+    body = body.replace(/^[ \t]*[\n]+/, '\n');
+
+    // Trim HANYA whitespace horizontal + maksimum 1 newline leading agar
+    // body tetap mulai dari isi user. Jangan sentuh line break di dalamnya.
+    body = body.replace(/^[ \t]*\n?[ \t]*/, '');
+
+    if (!body.trim()) {
+        // Baris metadata ada tapi tidak ada isi apa pun → minta klarifikasi.
+        return { __ambiguous: 'empty-body' };
+    }
+
+    // Rakit kembali: `${recurrencePart} HH:MM ${body}`.
+    // parseScheduleText di baseline sudah mempertahankan line break pada
+    // bagian setelah HH:MM (lihat normalizeScheduleInput).
+    const rec = recurrencePart || aiRecurrencePart || 'setiap hari';
+    const time = timeHHMM || aiTime;
+    if (!time) return null;
+
+    return `${rec} ${time} ${body}`;
 }
+
+// Diekspor khusus untuk pengujian unit. Jangan dipanggil dari runtime bot
+// kecuali melalui jalur execBuat/executeBuatOnGroup.
+export const __test_recoverOriginalSchedule = recoverOriginalSchedule;
 
 // State konfirmasi pending per user (chat pribadi).
 // Map<jid, { intent, expiresAt }>
@@ -213,8 +362,18 @@ async function execBuat(ctx, jid, senderPhone, intent, rawText = '') {
     );
     if (!scheduleText) {
         await ctx.sock.sendMessage(jid, {
-            text: '❌ Jadwal belum lengkap. Contoh: *setiap hari 08:00 briefing*'
+            text: '❓ Jadwalnya kapan dan isinya apa? Contoh: *setiap hari 08:00 briefing pagi*\n\nTulis metadata (pengulangan + jam) di baris pertama, lalu isi pesan lengkap di baris berikutnya.'
         });
+        return { handled: true };
+    }
+    if (typeof scheduleText === 'object' && scheduleText.__ambiguous) {
+        const reason = scheduleText.__ambiguous === 'multiple-times'
+            ? `Ada lebih dari satu waktu di baris metadata (${(scheduleText.times || []).join(' dan ')}). Pakai waktu yang mana?`
+            : 'Metadata jadwal ada, tetapi isi pesan masih kosong. Mohon kirim ulang dengan isi pesan setelah waktu.';
+        await ctx.sock.sendMessage(jid, {
+            text: `❓ ${reason}\n\nContoh format:\n*setiap hari 08:00 poin 10*\n(isi pesan di baris berikutnya)`
+        });
+        phaseDLog('ASK', 'ambigu metadata jadwal', String(scheduleText.__ambiguous));
         return { handled: true };
     }
 
@@ -275,6 +434,12 @@ async function executeBuatOnGroup(ctx, jid, senderPhone, intent, group, rawText 
         intent.params?.schedule,
         intent.intent === 'buat_tugas'
     );
+    if (!scheduleText || (typeof scheduleText === 'object' && scheduleText.__ambiguous)) {
+        await ctx.sock.sendMessage(jid, {
+            text: '❓ Metadata jadwal tidak jelas. Mohon kirim ulang dengan pengulangan + jam di baris pertama, lalu isi pesan di baris berikutnya.'
+        });
+        return { handled: true };
+    }
     const schedule = ctx.parseScheduleText(scheduleText);
     if (!schedule || schedule.error) {
         await ctx.sock.sendMessage(jid, {
@@ -618,6 +783,20 @@ export async function dispatchIntent(ctx, jid, senderPhone, intent, rawText) {
         return { handled: false, reason: 'low-confidence' };
     }
 
+    // Jika AI/pre-classifier yakin intent-nya tapi parameter wajib hilang
+    // (contoh: "buat tugas" tanpa jadwal/poin, "jam laporan tambah" tanpa
+    // HH:MM, "hapus user" tanpa nomor), AJUKAN pertanyaan spesifik —
+    // JANGAN tebak nilai yang hilang. Ini sesuai pedoman keamanan prompt.
+    if (!hasRequiredParams(intent.intent, intent.params || {})) {
+        const question = missingParamQuestion(intent.intent, intent.params || {});
+        await ctx.sock.sendMessage(jid, {
+            text: `❓ ${question}`
+        });
+        phaseDLog('ASK', `param wajib hilang, minta klarifikasi`,
+            `${intent.intent} missing`);
+        return { handled: true, reason: 'missing-params' };
+    }
+
     if (conf < CONFIDENCE_EXEC) {
         // Simpan pending confirm
         pendingConfirm.set(jid, {
@@ -625,7 +804,7 @@ export async function dispatchIntent(ctx, jid, senderPhone, intent, rawText) {
             rawText,
             expiresAt: Date.now() + 2 * 60 * 1000 // 2 menit
         });
-        const summary = summarizeIntent(intent);
+        const summary = summarizeIntent(intent, rawText);
         await ctx.sock.sendMessage(jid, {
             text: `🤔 Maksudmu:\n${summary}\n\nJawab *ya* untuk lanjut, *tidak* untuk batal.`
         });
@@ -635,8 +814,29 @@ export async function dispatchIntent(ctx, jid, senderPhone, intent, rawText) {
     return await executeIntent(ctx, jid, senderPhone, intent, rawText);
 }
 
-function summarizeIntent(intent) {
+function summarizeIntent(intent, rawText = '') {
     const p = intent.params || {};
+    const isBuat = intent.intent === 'buat_jadwal_biasa' || intent.intent === 'buat_tugas';
+    if (isBuat) {
+        // Jangan tampilkan versi AI yang mungkin sudah diringkas sebagai
+        // "isi pesan". Pakai hasil recoverOriginalSchedule yang berasal
+        // dari rawText user; bila gagal, tunjukkan metadata saja.
+        const recovered = recoverOriginalSchedule(rawText, p.schedule, intent.intent === 'buat_tugas');
+        if (recovered && typeof recovered === 'string') {
+            // Tampilkan metadata di satu baris + isi persis di bawahnya.
+            const metaMatch = recovered.match(/^(setiap\s+\S+(?:,\s*\S+)*\s+\d{1,2}:\d{2})\s+([\s\S]+)$/i);
+            const meta = metaMatch ? metaMatch[1] : recovered.split('\n')[0];
+            const body = metaMatch ? metaMatch[2] : '';
+            const pointsLine = intent.intent === 'buat_tugas' ? `\n⭐ Poin: ${p.points || 0}` : '';
+            const bodyBlock = body ? `\n\n📝 Isi pesan (akan dikirim persis seperti ini):\n${body}` : '';
+            const headline = intent.intent === 'buat_tugas' ? '🎯 Buat tugas' : '📅 Buat jadwal biasa';
+            return `${headline}\n⏰ ${meta}${pointsLine}${bodyBlock}`;
+        }
+        // Fallback: tampilkan apa adanya dari AI tapi beri label jelas.
+        return intent.intent === 'buat_tugas'
+            ? `🎯 Buat tugas (ringkasan metadata): *${p.schedule || '-'}* — ${p.points || 0} poin\n⚠️ Isi pesan belum terbaca jelas, mohon konfirmasi.`
+            : `📅 Buat jadwal biasa (ringkasan metadata): *${p.schedule || '-'}*\n⚠️ Isi pesan belum terbaca jelas, mohon konfirmasi.`;
+    }
     switch (intent.intent) {
         case 'buat_jadwal_biasa': return `📅 Buat jadwal biasa: *${p.schedule}*`;
         case 'buat_tugas': return `🎯 Buat tugas: *${p.schedule}* — ${p.points || 0} poin`;

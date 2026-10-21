@@ -14,6 +14,24 @@ import fs from 'fs';
 // ========================================
 import * as phaseC from './phaseC/index.js';
 import * as phaseD from './phaseD/index.js';
+import {
+    applyReminderScheduleEdit,
+    canQueueDelivery,
+    isWithinScheduleGrace,
+    shouldReplaceQueueTimer
+} from './scheduler-edit.js';
+import {
+    SCHEDULE_PAGE_SIZE,
+    getPageSlice,
+    buildPaginationFooter,
+    parsePageArgument
+} from './pagination.js';
+import {
+    COMMAND_CATALOG,
+    buildMenuMessage,
+    isMenuTrigger,
+    parseMenuArgument
+} from './menu.js';
 
 // ========================================
 // FILE PENYIMPANAN REMINDER
@@ -667,7 +685,9 @@ const LOG_FILE = './scheduler.log';
 const messageQueue = [];
 const queuedDeliveryKeys = new Set();
 const sendingDeliveryKeys = new Set();
+const lateScheduleSkipKeys = new Set();
 let queueTimer = null;
+let queueTimerAt = null;
 let queueWorkerRunning = false;
 let lastScheduledMessageSentAt = 0;
 
@@ -774,9 +794,13 @@ function clearPendingDelivery(reminder) {
 function enqueueReminder(reminder, today) {
     const deliveryKey = buildDeliveryKey(reminder, today);
 
-    if (reminder.lastSent === today) return false;
-    if (queuedDeliveryKeys.has(deliveryKey)) return false;
-    if (sendingDeliveryKeys.has(deliveryKey)) return false;
+    if (!canQueueDelivery(
+        deliveryKey,
+        queuedDeliveryKeys,
+        sendingDeliveryKeys,
+        reminder.lastSent,
+        today
+    )) return false;
 
     const originalSendAt = new Date(reminder.sendAt).getTime();
     if (!Number.isFinite(originalSendAt)) return false;
@@ -813,12 +837,16 @@ function enqueueReminder(reminder, today) {
 }
 
 function scheduleQueueWorker(delay = 0) {
-    if (queueTimer) return;
+    const requestedAt = Date.now() + Math.max(0, delay);
+    if (queueTimer && !shouldReplaceQueueTimer(queueTimerAt, requestedAt)) return;
+    if (queueTimer) clearTimeout(queueTimer);
 
     queueTimer = setTimeout(async () => {
         queueTimer = null;
+        queueTimerAt = null;
         await processMessageQueue();
-    }, Math.max(0, delay));
+    }, Math.max(0, requestedAt - Date.now()));
+    queueTimerAt = requestedAt;
 }
 
 async function processMessageQueue() {
@@ -1015,6 +1043,24 @@ async function runReminderCheck(sock) {
 
         // Buat target pengiriman sekali saja: +1 sampai +5 menit.
         const wasPending = reminder.pendingDate === today && Boolean(reminder.sendAt);
+        // Jadwal baru hanya boleh dipulihkan dalam toleransi yang sudah
+        // ditetapkan. Delivery yang sudah disiapkan tetap diproses setelah delay.
+        if (!wasPending && !isWithinScheduleGrace(
+            scheduledAt,
+            now,
+            REMINDER_GRACE_MINUTES * 60 * 1000
+        )) {
+            const skipKey = buildDeliveryKey(reminder, today);
+            if (!lateScheduleSkipKeys.has(skipKey)) {
+                lateScheduleSkipKeys.add(skipKey);
+                writeLog(
+                    'SKIP',
+                    `Jadwal terlambat dilewati: ${reminder.id}`,
+                    `jadwal=${reminder.time}, toleransi=${REMINDER_GRACE_MINUTES} menit`
+                );
+            }
+            continue;
+        }
 
         if (!preparePendingDelivery(reminder, today)) continue;
         if (!wasPending) changed = true;
@@ -1206,16 +1252,20 @@ async function sendGroupSelection(sock, privateJid, userPhone) {
     );
 }
 
-function formatPrivateScheduleList(reminders, groupNames = new Map()) {
+function formatPrivateScheduleList(slice, groupNames = new Map()) {
     let response = '📋 *DAFTAR JADWAL BOT*\n\n';
 
-    reminders.forEach((reminder, index) => {
+    slice.items.forEach((reminder, offset) => {
+        // Nomor yang ditampilkan adalah nomor GLOBAL (1..total), bukan
+        // 1..pageSize. Dengan demikian `edit N` / `hapus N` tetap merujuk
+        // ke jadwal yang sama meskipun pengguna berpindah halaman.
+        const humanNumber = slice.startIndex + offset + 1;
         const groupName =
             groupNames.get(reminder.chatId) ||
             reminder.chatId;
 
         response +=
-`${index + 1}. *${groupName}*
+`${humanNumber}. *${groupName}*
    ⏰ ${reminder.time}
    🔁 ${recurrenceLabel(reminder)}
    📌 ${reminder.text}
@@ -1226,7 +1276,7 @@ function formatPrivateScheduleList(reminders, groupNames = new Map()) {
     return response.trim();
 }
 
-async function sendPrivateScheduleList(sock, privateJid, showAll = false) {
+async function sendPrivateScheduleList(sock, privateJid, showAll = false, page = 1) {
     const users = loadUsers();
     const phone = getUserPhone(privateJid);
     const admin = isAdmin(users, phone);
@@ -1259,18 +1309,24 @@ async function sendPrivateScheduleList(sock, privateJid, showAll = false) {
         groups.map(group => [group.id, group.name])
     );
 
+    const slice = getPageSlice(reminders, page, SCHEDULE_PAGE_SIZE);
+    const listCommand = showAll && admin ? 'jadwal semua' : 'jadwal';
+    const footer = buildPaginationFooter(slice, listCommand);
+
+    // Simpan `ids` LENGKAP (bukan hanya halaman) agar `edit N` dan
+    // `hapus N` menggunakan index global yang konsisten lintas halaman.
     privateScheduleViews.set(
         privateJid,
         reminders.map(reminder => reminder.id)
     );
 
+    const parts = [formatPrivateScheduleList(slice, groupNames)];
+    if (footer) parts.push(footer);
+    parts.push('Gunakan *edit 1* untuk mengubah, atau *hapus 1* / *hapus 1,2* untuk menghapus.');
+
     await sock.sendMessage(
         privateJid,
-        {
-            text:
-                formatPrivateScheduleList(reminders, groupNames) +
-                '\n\nGunakan *edit 1* untuk mengubah, atau *hapus 1* / *hapus 1,2* untuk menghapus.'
-        }
+        { text: parts.join('\n\n') }
     );
 }
 
@@ -1596,21 +1652,28 @@ Ketik *ya* untuk menyimpan atau *batal* untuk membatalkan.` });
         }
         const reminders = loadReminders();
         const reminder = reminders.find(item => String(item.id) === String(state.reminderId) && normalizeUserId(item.ownerJid) === getUserPhone(jid));
-        privateScheduleState.delete(jid);
         if (!reminder) {
+            privateScheduleState.delete(jid);
             await sock.sendMessage(jid, { text: '⚠️ Jadwal tersebut sudah tidak ditemukan.' });
             return true;
         }
+        const { today } = getTodayParts();
+        if (sendingDeliveryKeys.has(buildDeliveryKey(reminder, today))) {
+            privateScheduleState.delete(jid);
+            await sock.sendMessage(jid, { text: '⚠️ Jadwal sedang dikirim dan tidak dapat diedit saat ini.' });
+            return true;
+        }
+        privateScheduleState.delete(jid);
         const schedule = state.pendingSchedule;
-        reminder.text = schedule.text;
-        reminder.time = schedule.time;
-        reminder.recurrence = schedule.recurrence;
-        for (const key of ['date', 'daysOfWeek', 'dayOfMonth']) delete reminder[key];
-        if (schedule.date) reminder.date = schedule.date;
-        if (schedule.daysOfWeek) reminder.daysOfWeek = schedule.daysOfWeek;
-        if (schedule.dayOfMonth) reminder.dayOfMonth = schedule.dayOfMonth;
-        for (const key of ['pendingDate', 'scheduledAt', 'sendAt', 'deliveryId', 'retryCount', 'retryAfter']) delete reminder[key];
-        for (let i = messageQueue.length - 1; i >= 0; i--) if (String(messageQueue[i].reminderId) === String(reminder.id)) messageQueue.splice(i, 1);
+        const removedQueuedDeliveries = applyReminderScheduleEdit(
+            reminder, schedule, messageQueue, queuedDeliveryKeys
+        );
+        if (removedQueuedDeliveries > 0 && queueTimer) {
+            clearTimeout(queueTimer);
+            queueTimer = null;
+            queueTimerAt = null;
+            if (messageQueue.length > 0) scheduleQueueWorker();
+        }
         saveReminders(reminders);
         scheduleReminderChecker(sock);
         await sock.sendMessage(jid, { text: `✅ Jadwal berhasil diperbarui.\n\n📌 ${reminder.text}\n🔁 ${recurrenceLabel(reminder)}\n⏰ ${reminder.time}` });
@@ -2113,6 +2176,23 @@ async function startBot() {
                         continue;
                     }
 
+                    // === Menu bantuan (menu / help / bantuan [page]) ===
+                    // Daftar perintah difilter sesuai peran pengguna, dengan
+                    // paginasi 20 perintah per halaman.
+                    if (isMenuTrigger(text)) {
+                        const parsed = parseMenuArgument(text);
+                        const page = (parsed && parsed.page) || 1;
+                        const menuMsg = buildMenuMessage(COMMAND_CATALOG, {
+                            isAdmin: isAdmin(users, senderPhone),
+                            isAuthorized: isAuthorized(users, senderPhone, identityAliases),
+                            hasAdmin: users.admins.length > 0,
+                            aiEnabled: Boolean(phaseD.getAIConfig?.().enabled),
+                            scope: 'private'
+                        }, page);
+                        await sock.sendMessage(jid, { text: menuMsg.text });
+                        continue;
+                    }
+
                     if (
                         lowerText === 'buat jadwal' ||
                         lowerText === 'buat' ||
@@ -2160,15 +2240,15 @@ async function startBot() {
                         normalizedPrivateCommand === 'buat jadwal' ||
                         normalizedPrivateCommand === 'buat' ||
                         normalizedPrivateCommand === 'jadwal baru' ||
-                        normalizedPrivateCommand === 'jadwal' ||
-                        normalizedPrivateCommand === 'lihat jadwal' ||
+                        /^(?:lihat\s+)?jadwal(?:\s+\d+)?$/i.test(normalizedPrivateCommand) ||
                         /^edit\s+\d+$/i.test(normalizedPrivateCommand) ||
-                        normalizedPrivateCommand === 'jadwal semua' ||
+                        /^jadwal\s+semua(?:\s+\d+)?$/i.test(normalizedPrivateCommand) ||
                         normalizedPrivateCommand === 'tugas' ||
                         normalizedPrivateCommand === 'laporan' ||
                         normalizedPrivateCommand === 'ai ping' ||
                         normalizedPrivateCommand === 'ai status' ||
                         normalizedPrivateCommand === 'batal' ||
+                        /^(menu|help|bantuan)(?:\s+\d+)?$/i.test(normalizedPrivateCommand) ||
                         /^hapus\s+(semua|\d+(?:\s*,\s*\d+)*)$/i.test(normalizedPrivateCommand) ||
                         /^hapus\s+tugas\s+(semua|\d+(?:\s*,\s*\d+)*)$/i.test(normalizedPrivateCommand);
 
@@ -2191,24 +2271,23 @@ async function startBot() {
                         // Kalau AI gagal / intent unknown → fall-through ke help baseline
                     }
 
-                    if (
-                        lowerText === 'jadwal semua'
-                    ) {
+                    const jadwalSemuaMatch = lowerText.match(/^jadwal\s+semua(?:\s+(\d+))?$/);
+                    if (jadwalSemuaMatch) {
                         if (!isAdmin(users, senderPhone)) {
                             await sock.sendMessage(jid, {
                                 text: '❌ Hanya ADMIN yang boleh melihat semua jadwal.'
                             });
                         } else {
-                            await sendPrivateScheduleList(sock, jid, true);
+                            const page = parsePageArgument(jadwalSemuaMatch[1]) || 1;
+                            await sendPrivateScheduleList(sock, jid, true, page);
                         }
                         continue;
                     }
 
-                    if (
-                        lowerText === 'jadwal' ||
-                        lowerText === 'lihat jadwal'
-                    ) {
-                        await sendPrivateScheduleList(sock, jid, false);
+                    const jadwalListMatch = lowerText.match(/^(?:lihat\s+)?jadwal(?:\s+(\d+))?$/);
+                    if (jadwalListMatch) {
+                        const page = parsePageArgument(jadwalListMatch[1]) || 1;
+                        await sendPrivateScheduleList(sock, jid, false, page);
                         continue;
                     }
 
@@ -2374,16 +2453,15 @@ Ketik *jadwal* terlebih dahulu, lalu *hapus 1* atau *hapus 1,2*.`
                             text:
 `🤖 *BOT SCHEDULER*
 
-Perintah:
+Perintah utama:
 
 • *buat jadwal* → pilih grup lalu buat jadwal
-• *jadwal* → lihat jadwal milik sendiri
+• *jadwal* → lihat jadwal milik sendiri (20 per halaman)
+• *jadwal 2* → lihat halaman ke-2 bila jadwal >20
 • *edit 1* → edit jadwal nomor 1 dari daftar *jadwal*
-• *jadwal semua* → lihat semua jadwal (ADMIN)
-• *hapus 1* → hapus jadwal nomor 1
-• *hapus 1,2* → hapus beberapa jadwal
-• *hapus semua* → hapus semua jadwal
+• *hapus 1* / *hapus 1,2* / *hapus semua*
 
+Ketik *menu* untuk daftar lengkap perintah sesuai akses Anda.
 Untuk membatalkan proses: *batal*`
                         }
                     );
@@ -2394,6 +2472,21 @@ Untuk membatalkan proses: *batal*`
                 // =================================
                 // GRUP: FITUR LAMA TETAP ADA
                 // =================================
+
+                // Menu bantuan di grup juga, dengan filter peran yang sama.
+                if (isMenuTrigger(text)) {
+                    const parsed = parseMenuArgument(text);
+                    const page = (parsed && parsed.page) || 1;
+                    const menuMsg = buildMenuMessage(COMMAND_CATALOG, {
+                        isAdmin: isAdmin(users, senderPhone),
+                        isAuthorized: isAuthorized(users, senderPhone, identityAliases),
+                        hasAdmin: users.admins.length > 0,
+                        aiEnabled: Boolean(phaseD.getAIConfig?.().enabled),
+                        scope: 'group'
+                    }, page);
+                    await sock.sendMessage(jid, { text: menuMsg.text });
+                    continue;
+                }
 
                 if (text.toLowerCase().includes('halo')) {
                     await sock.sendMessage(
@@ -2435,9 +2528,10 @@ Untuk membatalkan proses: *batal*`
                 // LIHAT / HAPUS JADWAL DI GRUP
                 // =================================
 
-                if (text.toLowerCase() === 'jadwal' || text.toLowerCase() === 'jadwal semua') {
+                const groupScheduleMatch = text.toLowerCase().match(/^jadwal(?:\s+semua)?(?:\s+(\d+))?$/);
+                if (groupScheduleMatch) {
                     const admin = isAdmin(users, senderPhone);
-                    const showAll = text.toLowerCase() === 'jadwal semua';
+                    const showAll = /\bsemua\b/.test(text.toLowerCase());
 
                     if (showAll && !admin) {
                         await sock.sendMessage(jid, {
@@ -2463,22 +2557,31 @@ Untuk membatalkan proses: *batal*`
                         continue;
                     }
 
+                    const page = parsePageArgument(groupScheduleMatch[1]) || 1;
+                    const slice = getPageSlice(reminders, page, SCHEDULE_PAGE_SIZE);
+                    const listCommand = showAll ? 'jadwal semua' : 'jadwal';
+                    const footer = buildPaginationFooter(slice, listCommand);
+
                     let response =
                         '📋 *DAFTAR JADWAL*\n\n';
 
-                    reminders.forEach((reminder, index) => {
+                    slice.items.forEach((reminder, offset) => {
+                        const humanNumber = slice.startIndex + offset + 1;
                         response +=
-`${index + 1}. ⏰ ${reminder.time}
+`${humanNumber}. ⏰ ${reminder.time}
    🔁 ${recurrenceLabel(reminder)}
    📌 ${reminder.text}
 
 `;
                     });
 
+                    const body = response.trim();
+                    const outText = footer ? `${body}\n\n${footer}` : body;
+
                     await sock.sendMessage(
                         jid,
                         {
-                            text: response.trim()
+                            text: outText
                         }
                     );
 
