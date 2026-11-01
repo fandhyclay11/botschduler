@@ -4,6 +4,7 @@ import {
     dispatchIntent,
     hasPendingConfirm
 } from './router.js';
+import { removeMember, getNameByPhone, getRoleByPhone } from '../phaseC/roster.js';
 
 // Mock context minimal. Hanya method yang dipakai dispatchIntent/executor
 // yang di-stub. Tidak menyentuh jaringan / file sistem / WhatsApp.
@@ -210,4 +211,199 @@ test('dispatchIntent: USER biasa tidak bisa admin_tambah_user', async () => {
     }, 'tambah user 62812345678');
     assert.equal(r.handled, true);
     assert.match(ctx._sent[0].msg.text, /Hanya ADMIN/i);
+});
+
+// --- 7. rekap_user: input nama HANYA memperbarui roster/leaderboard, ---
+// ---    TIDAK boleh memberi akses bot ke nomor baru. ---
+
+// Nomor dummy khusus test (tidak bentrok dengan data produksi). Dihapus dari
+// roster setelah tes selesai supaya tidak mencemari data_phaseC/roster.json.
+const REKAP_TEST_NUMBERS = [
+    '628990000001', // calon nama baru (belum terdaftar sebagai USER)
+    '628990000002', // sudah terdaftar sebagai USER (nama akan di-update)
+    '628990000003'  // existing USER yang tidak disentuh (kontrol)
+];
+
+function makeRekapCtx({ existingUsers = [], existingAdmins = [{ phone: PHONE_ADMIN, jid: PHONE_ADMIN }] } = {}) {
+    // Clone deep agar tes dapat memverifikasi state TANPA termutasi oleh
+    // ctx.loadUsers() berikutnya (router memanggil loadUsers 2x: untuk guard
+    // admin + untuk patch).
+    const snapshot = { admins: existingAdmins, users: existingUsers };
+    const saved = []; // setiap saveUsers push copy JSON
+    const sent = [];
+    const ctx = {
+        sock: {
+            sendMessage: async (jid, msg) => { sent.push({ jid, msg }); return { key: { id: 'MSG' } }; }
+        },
+        loadUsers: () => JSON.parse(JSON.stringify(snapshot)),
+        saveUsers: (u) => {
+            // Simulate persist: update snapshot + simpan copy
+            snapshot.admins = JSON.parse(JSON.stringify(u.admins || []));
+            snapshot.users = JSON.parse(JSON.stringify(u.users || []));
+            saved.push(JSON.parse(JSON.stringify(u)));
+        },
+        isAdmin: (users, phone) =>
+            (users.admins || []).some(a => a.phone === phone || a.jid === phone),
+        normalizeUserId: (v) => String(v || '').replace(/\D/g, ''),
+        phaseC: {}
+    };
+    return { ctx, saved, sent, snapshot };
+}
+
+test('rekap_user: memasukkan nama baru menyimpan nama di roster (leaderboard akan menampilkan nama baru)', async () => {
+    const num = REKAP_TEST_NUMBERS[0];
+    const { ctx } = makeRekapCtx();
+    const r = await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user',
+        confidence: 0.95,
+        params: { members: [{ name: 'Budi Test', phone: num, role: 'SSL' }] }
+    }, `rekap user:\nBudi Test ${num} SSL`);
+
+    assert.equal(r.handled, true);
+    // Roster = sumber nama leaderboard
+    assert.equal(getNameByPhone(num), 'Budi Test');
+    assert.equal(getRoleByPhone(num), 'SSL');
+});
+
+test('rekap_user: memperbarui nama existing roster → nama leaderboard ikut berubah', async () => {
+    const num = REKAP_TEST_NUMBERS[0];
+    const { ctx } = makeRekapCtx();
+
+    // Masukan awal
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Nama Lama', phone: num, role: 'SSL' }] }
+    }, `rekap user:\nNama Lama ${num} SSL`);
+    assert.equal(getNameByPhone(num), 'Nama Lama');
+
+    // Update nama
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Nama Baru', phone: num, role: 'SSL' }] }
+    }, `rekap user:\nNama Baru ${num} SSL`);
+    assert.equal(getNameByPhone(num), 'Nama Baru');
+});
+
+test('rekap_user: nomor baru TIDAK ditambahkan ke daftar pengguna bot (users.json tidak membengkak)', async () => {
+    const num = REKAP_TEST_NUMBERS[0];
+    const { ctx, snapshot } = makeRekapCtx({
+        existingUsers: [{ jid: PHONE_USER, phone: PHONE_USER, name: 'User Lama' }]
+    });
+
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Pendatang', phone: num, role: 'SCB' }] }
+    }, `rekap user:\nPendatang ${num} SCB`);
+
+    // users.users TIDAK boleh ada entry baru untuk `num`.
+    const found = snapshot.users.find(u => u.jid === num || u.phone === num);
+    assert.equal(found, undefined,
+        'nomor yang hanya di-rekap namanya tidak boleh ditambahkan ke users.json');
+    // User lama tetap ada, tidak terhapus
+    assert.equal(snapshot.users.length, 1);
+    assert.equal(snapshot.users[0].phone, PHONE_USER);
+});
+
+test('rekap_user: nomor baru yang di-rekap TIDAK memperoleh akses bot (isAuthorized tetap false)', async () => {
+    const num = REKAP_TEST_NUMBERS[0];
+    const { ctx, snapshot } = makeRekapCtx();
+
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Pendatang', phone: num, role: 'SCB' }] }
+    }, `rekap user:\nPendatang ${num} SCB`);
+
+    // Simulasi pemeriksaan akses (sama seperti index.js:isAuthorized).
+    const isAdmin = (snapshot.admins || []).some(a => a.phone === num || a.jid === num);
+    const isUser = (snapshot.users || []).some(u => u.phone === num || u.jid === num);
+    const authorized = isAdmin || isUser;
+    assert.equal(authorized, false,
+        'input nama tidak boleh otomatis memberi akses bot');
+});
+
+test('rekap_user: USER yang sudah terdaftar namanya di-update, peran/akses tidak berubah', async () => {
+    const num = REKAP_TEST_NUMBERS[1];
+    const existing = {
+        jid: num, phone: num, name: 'Lama',
+        addedAt: '2020-01-01T00:00:00.000Z',
+        role: 'USER' // field role simulatif; harus tetap sama
+    };
+    const { ctx, snapshot } = makeRekapCtx({ existingUsers: [existing] });
+
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Baru', phone: num, role: 'SJL' }] }
+    }, `rekap user:\nBaru ${num} SJL`);
+
+    const u = snapshot.users.find(x => x.phone === num);
+    assert.ok(u, 'user existing tetap ada');
+    assert.equal(u.name, 'Baru', 'nama di users.json diperbarui');
+    // Field lain tidak boleh berubah
+    assert.equal(u.addedAt, '2020-01-01T00:00:00.000Z');
+    assert.equal(u.role, 'USER');
+    assert.equal(u.jid, num);
+    // Tidak ada entry user tambahan
+    assert.equal(snapshot.users.length, 1);
+});
+
+test('rekap_user: pengguna bot existing lain (yang tidak di-rekap) tetap utuh', async () => {
+    const numRekap = REKAP_TEST_NUMBERS[0];
+    const numKontrol = REKAP_TEST_NUMBERS[2];
+    const kontrol = { jid: numKontrol, phone: numKontrol, name: 'Kontrol', addedAt: '2021-06-01T00:00:00.000Z' };
+    const { ctx, snapshot } = makeRekapCtx({ existingUsers: [kontrol] });
+
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'Siapa', phone: numRekap, role: 'SCB' }] }
+    }, `rekap user:\nSiapa ${numRekap} SCB`);
+
+    // User kontrol harus tetap persis
+    const stillThere = snapshot.users.find(u => u.phone === numKontrol);
+    assert.deepEqual(stillThere, kontrol,
+        'user existing yang tidak terkait rekap tidak boleh berubah');
+    assert.equal(snapshot.users.length, 1);
+});
+
+test('rekap_user: ADMIN existing tetap ADMIN (peran/akses admin tidak di-downgrade)', async () => {
+    const { ctx, snapshot } = makeRekapCtx();
+    const num = REKAP_TEST_NUMBERS[0];
+
+    const adminBefore = JSON.parse(JSON.stringify(snapshot.admins));
+    await dispatchIntent(ctx, JID, PHONE_ADMIN, {
+        intent: 'rekap_user', confidence: 0.95,
+        params: { members: [{ name: 'X', phone: num, role: 'SSL' }] }
+    }, `rekap user:\nX ${num} SSL`);
+
+    assert.deepEqual(snapshot.admins, adminBefore,
+        'daftar admin tidak boleh berubah akibat rekap');
+});
+
+test('mekanisme pemberian akses existing (admin_tambah_user) tetap bekerja seperti biasa', async () => {
+    // Pastikan jalur sah untuk menambah USER tetap menambahkan entry ke
+    // users.users (regresi guard supaya perbaikan rekap tidak menyentuh jalur ini).
+    const target = '62812345678';
+    const { ctx, snapshot } = makeRekapCtx();
+    const jid = '628995@s.whatsapp.net';
+
+    const r = await dispatchIntent(ctx, jid, PHONE_ADMIN, {
+        intent: 'admin_tambah_user',
+        confidence: 0.95,
+        params: { phone: target, name: 'User Sah' }
+    }, `tambah user ${target} User Sah`);
+
+    assert.equal(r.handled, true);
+    const added = snapshot.users.find(u => u.jid === target || u.phone === target);
+    assert.ok(added, 'admin_tambah_user harus menambahkan entry ke users.users');
+    assert.equal(added.name, 'User Sah');
+});
+
+test('cleanup: hapus nomor dummy dari roster.json agar tidak mencemari data', () => {
+    for (const num of REKAP_TEST_NUMBERS) {
+        removeMember(num, (v) => String(v || '').replace(/\D/g, ''));
+    }
+    // Tidak assert — removeMember mengembalikan ok:false kalau tidak ada;
+    // yang penting roster bersih.
+    for (const num of REKAP_TEST_NUMBERS) {
+        assert.equal(getNameByPhone(num), '');
+    }
 });

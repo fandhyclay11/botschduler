@@ -34,6 +34,47 @@ import {
 } from './menu.js';
 
 // ========================================
+// PENGAMAN PROSES
+// ========================================
+// Node 15+ MENGHENTIKAN proses ketika ada unhandledRejection. Baileys
+// menerbitkan banyak promise asynchronous (reconnect, kirim pesan, update
+// kredensial). Satu rejection yang tidak tertangani — misalnya karena
+// `startBot()` dipanggil ulang dari handler `connection: close` tanpa
+// `await`/`.catch` — dapat mematikan proses secara diam-diam. Setelah itu
+// autostart hanya efektif jika pengawas (Task Scheduler / layanan)
+// me-restart proses; jika tidak, scheduler tidak jalan sampai pagi.
+//
+// Kita cegah proses mati dengan mencatat error dan tetap melanjutkan.
+// Semua kesalahan tetap terekam di scheduler.log untuk analisis.
+process.on('unhandledRejection', (reason) => {
+    try {
+        const message = reason instanceof Error
+            ? (reason.stack || reason.message)
+            : String(reason);
+        logProcessError('unhandledRejection', message);
+    } catch { /* best effort */ }
+});
+
+process.on('uncaughtException', (error) => {
+    try {
+        const message = error instanceof Error
+            ? (error.stack || error.message)
+            : String(error);
+        logProcessError('uncaughtException', message);
+    } catch { /* best effort */ }
+});
+
+function logProcessError(kind, message) {
+    const line = `[${new Date().toISOString()}] [${kind}] ${message}\n`;
+    try {
+        fs.appendFileSync('./scheduler.log', line);
+    } catch { /* ignore */ }
+    try {
+        console.error(line);
+    } catch { /* ignore */ }
+}
+
+// ========================================
 // FILE PENYIMPANAN REMINDER
 // ========================================
 
@@ -83,10 +124,27 @@ function loadUsers() {
 }
 
 function saveUsers(users) {
-    fs.writeFileSync(
-        USER_FILE,
-        JSON.stringify(users, null, 2)
-    );
+    atomicWriteJson(USER_FILE, users);
+}
+
+// Tulis JSON secara atomik: tulis ke file temporer, lalu rename ke tujuan.
+// Mencegah file produksi menjadi 0 byte / terpotong ketika proses mati
+// di tengah penulisan (crash, kill, atau kehabisan daya). loadReminders()
+// yang gagal parse akan mengembalikan [] dan membuat seluruh jadwal
+// "hilang" tanpa jejak, jadi atomic write adalah pencegahan utama.
+function atomicWriteJson(targetPath, data) {
+    const payload = JSON.stringify(data, null, 2);
+    const tmp = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(tmp, payload);
+    try {
+        fs.renameSync(tmp, targetPath);
+    } catch (error) {
+        // Jika rename gagal (mis. file target terkunci sesaat di Windows),
+        // bersihkan tmp agar tidak menumpuk, lalu lempar ulang supaya
+        // pemanggil tahu tulisan gagal.
+        try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+        throw error;
+    }
 }
 
 function normalizeUserId(value) {
@@ -318,25 +376,29 @@ function loadReminders() {
             }
 
             if (changed) {
-                fs.writeFileSync(
-                    REMINDER_FILE,
-                    JSON.stringify(data, null, 2)
-                );
+                atomicWriteJson(REMINDER_FILE, data);
             }
         }
 
         return data;
     } catch (error) {
+        // Catat kegagalan parse ke scheduler.log supaya tidak hilang
+        // bersama console. Mengembalikan [] berarti seluruh jadwal
+        // terlihat hilang; itu konsekuensi serius, jadi laporan harus
+        // tegas dan dapat ditelusuri.
+        try {
+            fs.appendFileSync(
+                './scheduler.log',
+                `[${new Date().toISOString()}] [ERROR] loadReminders gagal parse: ${error?.message || error}\n`
+            );
+        } catch { /* ignore */ }
         console.log('⚠️ Gagal membaca reminders.json');
         return [];
     }
 }
 
 function saveReminders(reminders) {
-    fs.writeFileSync(
-        REMINDER_FILE,
-        JSON.stringify(reminders, null, 2)
-    );
+    atomicWriteJson(REMINDER_FILE, reminders);
 }
 
 // ========================================
@@ -680,16 +742,141 @@ const RANDOM_DELAY_MAX_MINUTES = 5;
 const MESSAGE_MIN_INTERVAL_MS = 8000; // minimal jeda antar pesan terjadwal
 const MAX_SEND_RETRIES = 3;
 const RETRY_DELAY_MS = 15000;
+// Jendela retry total untuk kegagalan sementara: 24 jam sejak waktu
+// jadwal yang semestinya kirim. Setelah batas ini terlampaui, satu
+// occurrence (reminderId + tanggal) ditandai KEDALUWARSA dan tidak
+// dicoba lagi otomatis — mencegah bot "mengejar" pesan basi berhari-hari.
+const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Backoff bertahap untuk kegagalan sementara. Interval diperpanjang
+// perlahan sampai ~15 menit, kemudian ditahan di 15 menit sampai
+// `giveUpAt`. Nilai sengaja kecil di awal supaya kalau koneksi WA
+// baru saja goyang, retry berikutnya cepat; nilai akhir cukup lebar
+// supaya kalau penyebabnya rate-limit / server down, tidak membanjiri.
+const RETRY_BACKOFF_MS = [
+    15_000,   // 15 detik
+    30_000,   // 30 detik
+    60_000,   // 1 menit
+    2 * 60_000,
+    5 * 60_000,
+    10 * 60_000,
+    15 * 60_000
+];
 const LOG_FILE = './scheduler.log';
+const EXPIRED_DELIVERY_FILE = './expired-deliveries.json';
 
 const messageQueue = [];
 const queuedDeliveryKeys = new Set();
 const sendingDeliveryKeys = new Set();
 const lateScheduleSkipKeys = new Set();
+// Kumpulan `deliveryKey` yang sudah dinyatakan kedaluwarsa (> 24 jam
+// sejak waktu jadwal). Dimuat dari EXPIRED_DELIVERY_FILE saat startup
+// agar restart tidak membangkitkan ulang occurrence basi.
+const expiredDeliveryKeys = new Set();
 let queueTimer = null;
 let queueTimerAt = null;
 let queueWorkerRunning = false;
 let lastScheduledMessageSentAt = 0;
+
+// --- Error classification -------------------------------------------
+// Kegagalan sementara (transient) berhak dicoba kembali dalam jendela
+// 24 jam. Kegagalan permanen BUKAN kandidat retry: percuma mencoba
+// kalau bot ditendang dari grup atau pesan tujuan sudah dihapus.
+// Daftar pola dipilih berdasarkan error yang pernah ditulis Baileys
+// ke scheduler.log kami (misal "Connection Closed", "forbidden",
+// "not-authorized", "item-not-found"). Jika pola tidak dikenal,
+// perlakukan sebagai transient (konservatif — kita lebih memilih
+// mencoba ulang daripada menjatuhkan pesan).
+const PERMANENT_ERROR_PATTERNS = [
+    /forbidden/i,
+    /not-authorized/i,
+    /item-not-found/i,
+    /recipient-not-in-group/i,
+    /blocked/i,
+    /not-acceptable/i,
+    /jid-malformed/i
+];
+
+function classifyDeliveryError(error) {
+    const message = String(error?.message || error || '').trim();
+    if (!message) return { kind: 'transient', reason: 'unknown' };
+    for (const pattern of PERMANENT_ERROR_PATTERNS) {
+        if (pattern.test(message)) {
+            return { kind: 'permanent', reason: message };
+        }
+    }
+    return { kind: 'transient', reason: message };
+}
+
+function nextRetryDelayMs(attempt) {
+    const idx = Math.min(Math.max(attempt - 1, 0), RETRY_BACKOFF_MS.length - 1);
+    return RETRY_BACKOFF_MS[idx];
+}
+
+// Hitung batas akhir "boleh retry" untuk satu reminder occurrence.
+// Mengacu pada `scheduledAt` persisten supaya restart tetap benar;
+// jika tidak ada, pakai sekarang + 24h sebagai fallback aman.
+function computeGiveUpAt(reminder) {
+    const base = reminder?.scheduledAt
+        ? new Date(reminder.scheduledAt).getTime()
+        : Date.now();
+    if (!Number.isFinite(base)) return Date.now() + RETRY_WINDOW_MS;
+    return base + RETRY_WINDOW_MS;
+}
+
+function loadExpiredDeliveryKeys() {
+    try {
+        if (!fs.existsSync(EXPIRED_DELIVERY_FILE)) return;
+        const data = JSON.parse(fs.readFileSync(EXPIRED_DELIVERY_FILE, 'utf8'));
+        if (!Array.isArray(data)) return;
+        for (const key of data) {
+            if (typeof key === 'string' && key.length > 0) {
+                expiredDeliveryKeys.add(key);
+            }
+        }
+    } catch (error) {
+        try {
+            fs.appendFileSync(
+                LOG_FILE,
+                `[${new Date().toISOString()}] [WARN] expired-deliveries.json gagal dibaca: ${error?.message || error}\n`
+            );
+        } catch { /* ignore */ }
+    }
+}
+
+function persistExpiredDeliveryKeys() {
+    try {
+        atomicWriteJson(EXPIRED_DELIVERY_FILE, Array.from(expiredDeliveryKeys));
+    } catch (error) {
+        try {
+            fs.appendFileSync(
+                LOG_FILE,
+                `[${new Date().toISOString()}] [WARN] expired-deliveries.json gagal ditulis: ${error?.message || error}\n`
+            );
+        } catch { /* ignore */ }
+    }
+}
+
+function markDeliveryExpired(deliveryKey) {
+    if (!deliveryKey) return;
+    if (expiredDeliveryKeys.has(deliveryKey)) return;
+    expiredDeliveryKeys.add(deliveryKey);
+    persistExpiredDeliveryKeys();
+}
+
+// Reset occurrence saat ini supaya tidak membawa jejak retry basi.
+// Dipanggil ketika suatu pengiriman dilabeli kedaluwarsa / gagal
+// permanen — field pending/retry dibersihkan tetapi `lastSent` yang
+// nyata (jika ada) dibiarkan.
+function markReminderOccurrenceFailed(reminder, kind, reason) {
+    reminder.lastDeliveryError = {
+        kind,
+        reason: String(reason || '').slice(0, 500),
+        at: new Date().toISOString(),
+        date: reminder.pendingDate || null,
+        deliveryId: reminder.deliveryId || null
+    };
+    clearPendingDelivery(reminder);
+}
 
 function writeLog(level, message, extra = '') {
     const line = `[${new Date().toISOString()}] [${level}] ${message}${extra ? ` | ${extra}` : ''}`;
@@ -760,6 +947,21 @@ function preparePendingDelivery(reminder, today) {
         return true;
     }
 
+    // Bersihkan sisa state dari hari sebelumnya. Jika bot mati di hari
+    // kemarin sesudah menyiapkan delivery (pendingDate=yesterday,
+    // retryAfter=yesterday+15s atau +24h), state itu akan menghalangi
+    // persiapan ulang hari ini:
+    //   - `reminder.retryAfter` dari hari kemarin masih dicek di
+    //     runReminderCheck() dan membuat jadwal diam seharian.
+    //   - `reminder.pendingDate=yesterday` tidak dibuang di tempat lain,
+    //     sehingga sisa `deliveryId` lama akan dipakai untuk logging
+    //     dan membingungkan audit.
+    // Reset ini aman: lastSent tetap, jadi anti-duplikat harian masih
+    // bekerja.
+    if (reminder.pendingDate && reminder.pendingDate !== today) {
+        clearPendingDelivery(reminder);
+    }
+
     const scheduledAt = getScheduledDateTime(reminder, today);
     if (!scheduledAt) return false;
 
@@ -794,6 +996,10 @@ function clearPendingDelivery(reminder) {
 function enqueueReminder(reminder, today) {
     const deliveryKey = buildDeliveryKey(reminder, today);
 
+    // Jadwal yang sudah lewat jendela 24 jam dicatat sebagai kedaluwarsa
+    // dan TIDAK boleh masuk antrean lagi (termasuk setelah restart).
+    if (expiredDeliveryKeys.has(deliveryKey)) return false;
+
     if (!canQueueDelivery(
         deliveryKey,
         queuedDeliveryKeys,
@@ -810,11 +1016,21 @@ function enqueueReminder(reminder, today) {
     if (reminder.retryAfter) {
         const retryAfter = new Date(reminder.retryAfter).getTime();
         if (Number.isFinite(retryAfter)) {
+            // Hormati delay retry: `sendAt` dipakai sebagai jadwal
+            // efektif, dan `processMessageQueue` akan menunda worker
+            // sampai Math.max(sendAt, lastSent+MIN_INTERVAL) tiba.
             sendAt = Math.max(sendAt, retryAfter);
-            if (Date.now() < retryAfter) {
-                // Tetap boleh masuk queue sekarang; worker akan menunggu sampai retryAfter.
-            }
         }
+    }
+
+    // Jangan antrekan kalau waktu kirim efektif sudah melewati jendela
+    // 24 jam dari waktu jadwal — tandai kedaluwarsa di sini juga.
+    const giveUpAt = computeGiveUpAt(reminder);
+    if (sendAt > giveUpAt) {
+        markDeliveryExpired(deliveryKey);
+        writeLog('EXPIRE', `Occurrence kedaluwarsa saat enqueue: ${reminder.deliveryId || reminder.id}`,
+            `jadwal=${reminder.scheduledAt || '-'}, batas=${new Date(giveUpAt).toISOString()}`);
+        return false;
     }
 
     messageQueue.push({
@@ -946,36 +1162,68 @@ async function sendQueuedReminder(item) {
             `messageId=${result.key.id}`
         );
     } catch (error) {
+        // Klasifikasikan error:
+        //   - permanent → tidak masuk akal retry (bot ditendang, dll).
+        //     Tandai occurrence hari ini sebagai gagal, lanjut hari lain
+        //     (edit/pindah grup oleh admin yang akan memulihkannya).
+        //   - transient → coba ulang dengan backoff bertahap sampai
+        //     batas 24 jam dari `scheduledAt` tercapai.
+        const classification = classifyDeliveryError(error);
         const attempt = Number(reminder.retryCount || 0) + 1;
         reminder.retryCount = attempt;
 
-        if (attempt < MAX_SEND_RETRIES) {
-            reminder.retryAfter = new Date(
-                Date.now() + RETRY_DELAY_MS
-            ).toISOString();
-
-            saveReminders(reminders);
-
-            writeLog(
-                'RETRY',
-                `Gagal ${reminder.deliveryId}`,
-                `attempt=${attempt}/${MAX_SEND_RETRIES}, retry=${reminder.retryAfter}, error=${error?.message || error}`
-            );
-
-            enqueueReminder(reminder, item.date);
-        } else {
-            reminder.retryAfter = new Date(
-                Date.now() + 24 * 60 * 60 * 1000
-            ).toISOString();
-
-            saveReminders(reminders);
-
+        if (classification.kind === 'permanent') {
+            // Permanen: jangan antrekan ulang. Tetap simpan audit error.
+            markDeliveryExpired(item.deliveryKey);
+            markReminderOccurrenceFailed(reminder, 'permanent', classification.reason);
+            try { saveReminders(reminders); } catch { /* ignore */ }
             writeLog(
                 'ERROR',
-                `Gagal permanen hari ini ${reminder.deliveryId}`,
-                `attempt=${attempt}, error=${error?.message || error}`
+                `Gagal permanen ${item.deliveryKey}`,
+                `attempt=${attempt}, error=${classification.reason}`
             );
+            return;
         }
+
+        // Transient: hitung kapan retry berikutnya, tetapi tidak melebihi
+        // batas 24 jam dari `scheduledAt`.
+        const giveUpAt = computeGiveUpAt(reminder);
+        const nowMs = Date.now();
+        if (nowMs >= giveUpAt) {
+            markDeliveryExpired(item.deliveryKey);
+            markReminderOccurrenceFailed(reminder, 'expired', classification.reason);
+            try { saveReminders(reminders); } catch { /* ignore */ }
+            writeLog(
+                'EXPIRE',
+                `Occurrence melewati jendela 24 jam: ${item.deliveryKey}`,
+                `attempt=${attempt}, error=${classification.reason}`
+            );
+            return;
+        }
+
+        const delay = nextRetryDelayMs(attempt);
+        const retryAt = Math.min(nowMs + delay, giveUpAt);
+        reminder.retryAfter = new Date(retryAt).toISOString();
+        // sendAt dipindah ke jadwal retry agar enqueue berikutnya tidak
+        // dieksekusi lebih awal.
+        reminder.sendAt = reminder.retryAfter;
+        reminder.lastDeliveryError = {
+            kind: 'transient',
+            reason: String(classification.reason || '').slice(0, 500),
+            at: new Date().toISOString(),
+            attempt
+        };
+
+        try { saveReminders(reminders); } catch { /* ignore */ }
+
+        writeLog(
+            'RETRY',
+            `Gagal ${reminder.deliveryId || item.deliveryKey}`,
+            `attempt=${attempt}, retry=${reminder.retryAfter}, giveUpAt=${new Date(giveUpAt).toISOString()}, error=${classification.reason}`
+        );
+
+        // Antrekan ulang dengan sendAt baru.
+        enqueueReminder(reminder, item.date);
     } finally {
         sendingDeliveryKeys.delete(deliveryKey);
     }
@@ -1043,27 +1291,60 @@ async function runReminderCheck(sock) {
 
         // Buat target pengiriman sekali saja: +1 sampai +5 menit.
         const wasPending = reminder.pendingDate === today && Boolean(reminder.sendAt);
-        // Jadwal baru hanya boleh dipulihkan dalam toleransi yang sudah
-        // ditetapkan. Delivery yang sudah disiapkan tetap diproses setelah delay.
-        if (!wasPending && !isWithinScheduleGrace(
-            scheduledAt,
-            now,
-            REMINDER_GRACE_MINUTES * 60 * 1000
-        )) {
-            const skipKey = buildDeliveryKey(reminder, today);
-            if (!lateScheduleSkipKeys.has(skipKey)) {
-                lateScheduleSkipKeys.add(skipKey);
+        const skipKey = buildDeliveryKey(reminder, today);
+
+        // Guard 24 jam: kalau sudah lewat batas, tandai kedaluwarsa
+        // sekali dan hentikan proses untuk occurrence ini.
+        const occurrenceAgeMs = now.getTime() - scheduledAt.getTime();
+        if (!wasPending && occurrenceAgeMs > RETRY_WINDOW_MS) {
+            if (!expiredDeliveryKeys.has(skipKey)) {
+                markDeliveryExpired(skipKey);
                 writeLog(
-                    'SKIP',
-                    `Jadwal terlambat dilewati: ${reminder.id}`,
-                    `jadwal=${reminder.time}, toleransi=${REMINDER_GRACE_MINUTES} menit`
+                    'EXPIRE',
+                    `Occurrence >24 jam, tidak dikirim ulang: ${reminder.id}`,
+                    `jadwal=${reminder.time}, usia=${Math.round(occurrenceAgeMs / 60_000)} menit`
                 );
             }
             continue;
         }
 
-        if (!preparePendingDelivery(reminder, today)) continue;
-        if (!wasPending) changed = true;
+        // Di dalam jendela 24 jam tapi di luar grace 2 menit:
+        //   - Jadwal yang sudah "pending" (sendAt sudah ditetapkan) tetap
+        //     dijalankan — queue worker yang mengatur waktunya.
+        //   - Jadwal yang BELUM pending dan baru ditemukan saat recovery
+        //     restart sekarang DIANGKAT jadi pending supaya tetap dikirim
+        //     dalam 24 jam, dengan sendAt = sekarang + delay acak kecil
+        //     agar tidak membanjiri grup langsung setelah bot menyala.
+        //   - lateScheduleSkipKeys dibiarkan untuk logging historis, tetapi
+        //     tidak lagi memblokir queue.
+        const outsideGrace = !isWithinScheduleGrace(
+            scheduledAt, now, REMINDER_GRACE_MINUTES * 60 * 1000
+        );
+        if (!wasPending && outsideGrace) {
+            if (!lateScheduleSkipKeys.has(skipKey)) {
+                lateScheduleSkipKeys.add(skipKey);
+                writeLog(
+                    'LATE',
+                    `Jadwal lewat grace, akan diantrekan ulang: ${reminder.id}`,
+                    `jadwal=${reminder.time}, usia=${Math.round(occurrenceAgeMs / 60_000)} menit`
+                );
+            }
+            // Siapkan pending delivery untuk recovery: sendAt = sekarang
+            // + jitter pendek supaya pemulihan massal pasca-restart tidak
+            // membanjiri grup tujuan.
+            const recoverySendAt = new Date(now.getTime() + getRandomDelayMs());
+            reminder.pendingDate = today;
+            reminder.scheduledAt = scheduledAt.toISOString();
+            reminder.sendAt = recoverySendAt.toISOString();
+            reminder.deliveryId = generateDeliveryId(reminder.id, today);
+            reminder.retryCount = 0;
+            delete reminder.retryAfter;
+            changed = true;
+        } else if (!preparePendingDelivery(reminder, today)) {
+            continue;
+        } else if (!wasPending) {
+            changed = true;
+        }
 
         // Jika retry sebelumnya masih menunggu, biarkan retry handler yang mengatur.
         if (reminder.retryAfter) {
@@ -1674,9 +1955,79 @@ Ketik *ya* untuk menyimpan atau *batal* untuk membatalkan.` });
             queueTimerAt = null;
             if (messageQueue.length > 0) scheduleQueueWorker();
         }
+        // Race-protection: antara `loadReminders()` di atas dan
+        // `saveReminders` di bawah, worker queue bisa saja menyelesaikan
+        // pengiriman untuk `reminder` yang sama (worker memuat reminders
+        // sendiri dan menulis `lastSent` + `lastMessageId`).
+        // Jika kita menulis `reminders` yang kita baca lebih dulu, kolom
+        // audit itu akan terhapus — dan guard anti-duplikat harian hilang.
+        // Baca ulang file setelah edit lalu merge: pertahankan hasil
+        // kirim terbaru, timpa field jadwal dari hasil edit kita.
+        try {
+            const latest = loadReminders();
+            const current = latest.find(item => String(item.id) === String(reminder.id));
+            if (current && (current.lastSent || current.lastMessageId)) {
+                for (const key of ['lastSent', 'lastSentAt', 'lastMessageId',
+                    'lastDeliveryId', 'lastScheduledAt', 'lastActualDelayMs']) {
+                    if (current[key] !== undefined) reminder[key] = current[key];
+                }
+                // Index di `reminders` memakai id yang sama, jadi
+                // reminder di array sudah ter-update by reference.
+            }
+        } catch (mergeError) {
+            writeLog(
+                'WARN',
+                'merge edit dengan pengiriman konkuren gagal',
+                mergeError?.message || mergeError
+            );
+        }
         saveReminders(reminders);
+
+        // Edit = occurrence baru untuk hari ini. Bersihkan status "sudah
+        // dilewati"/"kedaluwarsa" milik jadwal yang SAMA agar guard lama
+        // tidak memblokir pengiriman versi hasil edit.
+        const editedKey = buildDeliveryKey(reminder, today);
+        if (lateScheduleSkipKeys.has(editedKey)) {
+            lateScheduleSkipKeys.delete(editedKey);
+        }
+        if (expiredDeliveryKeys.has(editedKey)) {
+            expiredDeliveryKeys.delete(editedKey);
+            persistExpiredDeliveryKeys();
+        }
+
         scheduleReminderChecker(sock);
-        await sock.sendMessage(jid, { text: `✅ Jadwal berhasil diperbarui.\n\n📌 ${reminder.text}\n🔁 ${recurrenceLabel(reminder)}\n⏰ ${reminder.time}` });
+
+        // Evaluasi SEGERA, bukan menunggu tick 5 detik berikutnya. Ini
+        // memastikan edit yang jatuh tepat di dalam grace window tetap
+        // diproses sebelum jendela habis, dan edit yang waktunya sudah
+        // lewat tetap diangkat ke antrean retry 24 jam (lihat
+        // runReminderCheck).
+        let editedScheduledAt = null;
+        try {
+            editedScheduledAt = getScheduledDateTime(reminder, today);
+        } catch { /* ignore */ }
+
+        const editNow = getTodayParts().now;
+        const lateEditBeyondWindow = editedScheduledAt &&
+            editNow.getTime() - editedScheduledAt.getTime() > RETRY_WINDOW_MS;
+
+        if (!lateEditBeyondWindow) {
+            try {
+                await runReminderCheck(sock);
+            } catch (checkError) {
+                writeLog(
+                    'WARN',
+                    'runReminderCheck setelah edit gagal',
+                    checkError?.message || checkError
+                );
+            }
+        }
+
+        const todayNote = lateEditBeyondWindow
+            ? `\n\n⚠️ Waktu *${reminder.time}* untuk hari ini sudah lewat lebih dari 24 jam, jadi tidak akan dikirim hari ini. Jadwal tetap aktif untuk periode berikutnya.`
+            : '';
+
+        await sock.sendMessage(jid, { text: `✅ Jadwal berhasil diperbarui.\n\n📌 ${reminder.text}\n🔁 ${recurrenceLabel(reminder)}\n⏰ ${reminder.time}${todayNote}` });
         return true;
     }
 
@@ -1873,6 +2224,11 @@ Hubungi ADMIN bot untuk mendapatkan akses.`
 async function startBot() {
     printAccessControlStatus();
 
+    // Muat daftar occurrence yang sudah dinyatakan kedaluwarsa supaya
+    // reminder yang terlewat >24 jam tidak dibangkitkan ulang hanya
+    // karena bot direstart.
+    loadExpiredDeliveryKeys();
+
     const {
         state,
         saveCreds
@@ -1929,6 +2285,9 @@ async function startBot() {
                     '================================\n'
                 );
 
+                // Koneksi stabil kembali: reset hitungan backoff.
+                globalThis.__WA_RECONNECT_ATTEMPTS__ = 0;
+
                 startReminderChecker(sock);
 
                 // ==== FASE C: start report scheduler (loop kecil independen) ====
@@ -1955,7 +2314,52 @@ async function startBot() {
                         '🔄 Koneksi terputus, mencoba kembali...'
                     );
 
-                    startBot();
+                    // Bersihkan state scheduler milik koneksi lama supaya
+                    // tidak dua timer berjalan bersamaan setelah reconnect.
+                    // Semua state ini akan dibangun ulang oleh event
+                    // `connection: open` berikutnya.
+                    try {
+                        if (reminderTimer) {
+                            clearTimeout(reminderTimer);
+                            reminderTimer = null;
+                        }
+                        if (queueTimer) {
+                            clearTimeout(queueTimer);
+                            queueTimer = null;
+                            queueTimerAt = null;
+                        }
+                        // queueWorkerRunning dibiarkan apa adanya: jika
+                        // worker sedang `await sock.sendMessage(...)` dan
+                        // socket lama tiba-tiba close, worker akan masuk
+                        // catch & retry, lalu `finally` membersihkan
+                        // sendingDeliveryKeys. Me-reset `true -> false`
+                        // bisa menyebabkan dua worker paralel.
+                        phaseC.stopReportScheduler(sock);
+                    } catch (cleanupError) {
+                        writeLog(
+                            'WARN',
+                            'cleanup scheduler saat reconnect gagal',
+                            cleanupError?.message || cleanupError
+                        );
+                    }
+
+                    // Jadwalkan reconnect dengan backoff eksponensial
+                    // sederhana (maks 60s) supaya jaringan goyang tidak
+                    // memicu loop reconnect berfrekuensi tinggi.
+                    const attempt = Math.min(
+                        globalThis.__WA_RECONNECT_ATTEMPTS__ = (globalThis.__WA_RECONNECT_ATTEMPTS__ || 0) + 1,
+                        6
+                    );
+                    const delayMs = Math.min(60_000, 500 * 2 ** attempt);
+                    setTimeout(() => {
+                        startBot().catch(error => {
+                            writeLog(
+                                'ERROR',
+                                'startBot gagal setelah reconnect',
+                                error?.message || error
+                            );
+                        });
+                    }, delayMs);
                 } else {
                     console.log(
                         '❌ WhatsApp logout.'
@@ -2719,6 +3123,78 @@ untuk melihat daftar jadwal.`
     );
 
     // ====================================
+    // DIAGNOSTIK ACK / RECEIPT (T3 — Opsi A)
+    // ====================================
+    // Scheduler kita hanya mencatat `[SUCCESS]` saat `sock.sendMessage()`
+    // resolve dengan `key.id`. Itu HANYA bukti bahwa stanza berhasil
+    // dititipkan ke WebSocket (lihat relayMessage → sendNode →
+    // sendRawMessage di Baileys). Bukan bukti server menerima, apalagi
+    // bukti peer menerima.
+    //
+    // Status asli pesan datang asinkron lewat dua event:
+    //   - 'messages.update' → status enum WAMessageStatus (dari
+    //       proto.WebMessageInfo.Status):
+    //         0 ERROR  — stanza ditolak server
+    //         1 PENDING — belum diakui server
+    //         2 SERVER_ACK — server menerima
+    //         3 DELIVERY_ACK — minimal satu peer menerima (1-to-1) /
+    //                         distribusi grup diterima server
+    //         4 READ — peer membaca
+    //         5 PLAYED — media diputar
+    //   - 'message-receipt.update' → receipt per-peer untuk pesan grup
+    //
+    // Kita hanya MEN-LOG event ini (tidak memengaruhi queue/retry/scheduler).
+    // Tujuannya memberi bukti objektif saat investigasi "pesan tidak sampai"
+    // sambil mempertahankan kontrak scheduler yang sudah stabil.
+    sock.ev.on('messages.update', (updates) => {
+        if (!Array.isArray(updates)) return;
+        for (const u of updates) {
+            try {
+                const st = u.update?.status;
+                const stub = u.update?.messageStubType;
+                // Kita hanya tertarik ke event yang membawa informasi ack
+                // atau penolakan. Update kosong (mis. editan metadata lain)
+                // di-skip supaya log tidak berisik.
+                if (st === undefined && stub === undefined) continue;
+                writeLog(
+                    'ACK',
+                    `status=${st ?? '-'} stub=${stub ?? '-'}`,
+                    `messageId=${u.key?.id || '-'} chat=${u.key?.remoteJid || '-'} fromMe=${u.key?.fromMe ?? '-'}`
+                );
+            } catch (error) {
+                // Jangan biarkan exception di observer merusak koneksi.
+                try {
+                    writeLog('WARN', 'messages.update listener error',
+                        error?.message || error);
+                } catch { /* ignore */ }
+            }
+        }
+    });
+
+    sock.ev.on('message-receipt.update', (receipts) => {
+        if (!Array.isArray(receipts)) return;
+        for (const r of receipts) {
+            try {
+                // Baileys mengirim objek per peer. Jenis receipt dideduksi
+                // dari field timestamp yang ada: read > played > deliv.
+                let type = 'deliv';
+                if (r.receipt?.readTimestamp) type = 'read';
+                else if (r.receipt?.playedTimestamp) type = 'play';
+                writeLog(
+                    'RECEIPT',
+                    `type=${type}`,
+                    `messageId=${r.key?.id || '-'} chat=${r.key?.remoteJid || '-'} from=${r.receipt?.userJid || '-'}`
+                );
+            } catch (error) {
+                try {
+                    writeLog('WARN', 'message-receipt.update listener error',
+                        error?.message || error);
+                } catch { /* ignore */ }
+            }
+        }
+    });
+
+    // ====================================
     // FASE C — REACTION LISTENER
     // ====================================
     // Baileys mengirim reaction via event 'messages.reaction'.
@@ -2756,4 +3232,12 @@ untuk melihat daftar jadwal.`
 // START BOT
 // ========================================
 
-startBot();
+startBot().catch(error => {
+    // Jika startup gagal (mis. auth corrupt, versi WA Web gagal
+    // di-fetch), catat ke scheduler.log sebelum proses mati supaya
+    // ada jejak untuk diagnosa saat autostart me-restart.
+    try {
+        logProcessError('startBot-bootstrap', error?.stack || error?.message || String(error));
+    } catch { /* ignore */ }
+    throw error;
+});

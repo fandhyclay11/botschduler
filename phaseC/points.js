@@ -9,6 +9,7 @@
 // -------------------------------------------------------------
 
 import { FILES, readJson, writeJson, appendLog } from './store.js';
+import { getDisplayNameOverrides } from './roster.js';
 
 function currentMonthKey(now = new Date()) {
     const y = now.getFullYear();
@@ -36,8 +37,21 @@ function loadPointsForCurrentMonth() {
     return data;
 }
 
+// Terapkan override nama tampilan (dari roster.displayNames) ke salinan
+// snapshot tanpa menulis apa pun ke file poin. Nilai `points` tidak diubah.
+function decorateWithOverrides(data) {
+    const overrides = getDisplayNameOverrides();
+    if (!overrides || Object.keys(overrides).length === 0) return data;
+    const users = {};
+    for (const [id, u] of Object.entries(data.users || {})) {
+        const name = overrides[id] || u.name || '';
+        users[id] = { ...u, name };
+    }
+    return { ...data, users };
+}
+
 export function getPointsSnapshot() {
-    return loadPointsForCurrentMonth();
+    return decorateWithOverrides(loadPointsForCurrentMonth());
 }
 
 export function addPoints(canonicalId, displayName, amount) {
@@ -99,7 +113,7 @@ export function subtractPoints(canonicalId, amount) {
 // Leaderboard: ranking global, DIFILTER berdasarkan list canonical
 // anggota grup laporan. Kalau memberFilter null => semua user.
 export function getLeaderboard(memberFilter = null) {
-    const data = loadPointsForCurrentMonth();
+    const data = decorateWithOverrides(loadPointsForCurrentMonth());
 
     let entries = Object.values(data.users);
 

@@ -65,6 +65,16 @@ export const COMMAND_CATALOG = [
     // --- Admin: poin ---
     { command: 'poin kurang 628xxx 10', description: 'kurangi 10 poin dari seorang user', group: 'Admin', scope: 'private', role: 'admin' },
 
+    // --- Admin: nama tampilan (deterministik, tanpa AI) ---
+    //
+    // Catatan: perintah multiline deterministik "rekap user: ..." juga
+    // tersedia untuk ADMIN dan diproses oleh phaseC/commands.js SEBELUM AI
+    // (lihat tryHandlePhaseCCommand). Namun ia TIDAK dicantumkan di katalog
+    // ini karena bentuknya multiline dan tidak cocok ditampilkan sebagai
+    // satu baris perintah; menu bantuan ADMIN di phaseC yang menjelaskannya.
+    { command: 'nama 628xxx Nama Lengkap', description: 'set nama tampilan di leaderboard (tidak mengubah role / akses)', group: 'Admin', scope: 'private', role: 'admin' },
+    { command: 'nama tampilan 628xxx Nama Lengkap', description: 'alias dari perintah nama di atas', group: 'Admin', scope: 'private', role: 'admin' },
+
     // --- Admin: laporan ---
     { command: 'laporan grup pilih', description: 'tampilkan daftar grup bot untuk dipilih sebagai grup laporan', group: 'Laporan', scope: 'private', role: 'admin' },
     { command: 'laporan grup daftar', description: 'lihat grup laporan aktif', group: 'Laporan', scope: 'private', role: 'admin' },

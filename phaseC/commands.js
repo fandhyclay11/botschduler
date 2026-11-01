@@ -17,7 +17,19 @@
 //   laporan jam daftar                    → ADMIN
 //   laporan jam hapus HH:MM               → ADMIN
 //   laporan kirim                          → ADMIN (test manual)
+//   nama <phone> <display name>            → ADMIN: set nama tampilan leaderboard
+//   nama tampilan <phone> <display name>   → ADMIN: alias dari "nama ..."
+//   rekap user: (multiline)                → ADMIN: deterministik, tanpa AI;
+//                                            format baris berikut: Nama 628xxx ROLE
 //   tugas bantuan | fase c bantuan | phase c help → help
+//
+// Catatan penting:
+//   - "nama ..." TIDAK menambah entri users.json (akses), TIDAK membuat
+//     anggota roster baru, TIDAK mengubah role existing. Hanya menulis ke
+//     roster.displayNames.
+//   - "rekap user:" dieksekusi via roster.upsertMember() dan TIDAK pernah
+//     menulis users.json. Nonadmin mendapatkan penolakan eksplisit;
+//     format invalid dibalas dengan panduan format, tidak jatuh ke AI.
 // -------------------------------------------------------------
 
 import {
@@ -31,6 +43,11 @@ import {
 } from './reportConfig.js';
 import { sendReportsNow } from './reports.js';
 import { appendLog } from './store.js';
+import {
+    setDisplayName,
+    getRoles,
+    upsertMember
+} from './roster.js';
 
 function isAdminSender(ctx, users, senderPhone) {
     return ctx.isAdmin(users, senderPhone);
@@ -334,6 +351,156 @@ async function cmdReportSendNow(ctx, jid) {
     });
 }
 
+// ----- nama tampilan (ADMIN) -----
+// Deterministik, bypass AI. Hanya menulis ke roster.displayNames.
+// Tidak mengubah role, tidak menambah entri users.json, tidak membuat
+// anggota roster baru.
+async function cmdSetDisplayName(ctx, jid, senderPhone, phoneArg, nameArg) {
+    if (!isAdminSender(ctx, ctx.loadUsers(), senderPhone)) {
+        await ctx.sock.sendMessage(jid, {
+            text: 'Hanya ADMIN yang boleh mengatur nama tampilan.'
+        });
+        return;
+    }
+    const rawPhone = String(phoneArg || '').trim();
+    const rawName = String(nameArg || '').trim();
+    if (!rawPhone || !rawName) {
+        await ctx.sock.sendMessage(jid, {
+            text:
+`Format tidak valid.
+Gunakan:
+  nama <nomor> <nama tampilan>
+  nama tampilan <nomor> <nama tampilan>
+Contoh:
+  nama 628123456789 Budi Santoso`
+        });
+        return;
+    }
+    const canonical = ctx.normalizeUserId(rawPhone);
+    if (!canonical) {
+        await ctx.sock.sendMessage(jid, {
+            text: 'Nomor tidak valid. Gunakan format 62xxxxxxxxxx.'
+        });
+        return;
+    }
+    const result = setDisplayName(canonical, rawName, ctx.normalizeUserId);
+    if (!result.ok) {
+        await ctx.sock.sendMessage(jid, { text: result.error || 'Gagal menyimpan nama.' });
+        return;
+    }
+    const suffix = result.previous
+        ? ` (sebelumnya: ${result.previous})`
+        : '';
+    await ctx.sock.sendMessage(jid, {
+        text: `Nama tampilan untuk ${canonical} disimpan: ${rawName}${suffix}`
+    });
+    appendLog('CMD', 'Set display name',
+        `by=${senderPhone} phone=${canonical} name=${rawName}`);
+}
+
+// ----- rekap user deterministik (ADMIN) -----
+// Grammar baris pertama: "rekap user:" (opsional titik dua), lalu
+// baris-baris "<Nama ...> <62xxxx> <ROLE>". Setiap baris diparse
+// deterministik - tidak memanggil AI. Dieksekusi via upsertMember
+// (hanya menulis ke roster.json). Tidak pernah menulis users.json.
+function parseRekapUserBlock(text, validRoles) {
+    const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return { ok: false, error: 'Blok rekap kosong.' };
+    const first = lines[0].toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!/^rekap\s+user\s*:?$/.test(first)) {
+        return { ok: false, error: 'Baris pertama harus "rekap user:".' };
+    }
+    const body = lines.slice(1);
+    if (body.length === 0) {
+        return { ok: false, error: 'Tidak ada baris data setelah "rekap user:".' };
+    }
+    const validUpper = new Set(validRoles.map(r => String(r).toUpperCase()));
+    const items = [];
+    const errors = [];
+    body.forEach((raw, idx) => {
+        const parts = raw.split(/\s+/);
+        if (parts.length < 3) {
+            errors.push(`Baris ${idx + 1}: format kurang (butuh Nama 62xxx ROLE).`);
+            return;
+        }
+        const role = parts[parts.length - 1].toUpperCase();
+        const phone = parts[parts.length - 2];
+        const name = parts.slice(0, parts.length - 2).join(' ').trim();
+        if (!name) {
+            errors.push(`Baris ${idx + 1}: nama kosong.`);
+            return;
+        }
+        if (!/^\d{6,}$/.test(phone)) {
+            errors.push(`Baris ${idx + 1}: nomor "${phone}" tidak valid.`);
+            return;
+        }
+        if (!validUpper.has(role)) {
+            errors.push(`Baris ${idx + 1}: jabatan "${role}" tidak dikenal.`);
+            return;
+        }
+        items.push({ name, phone, role });
+    });
+    return { ok: true, items, errors };
+}
+
+function isRekapUserTrigger(text) {
+    return /^\s*rekap\s+user\b/i.test(String(text || ''));
+}
+
+async function cmdRekapUser(ctx, jid, senderPhone, text) {
+    if (!isAdminSender(ctx, ctx.loadUsers(), senderPhone)) {
+        await ctx.sock.sendMessage(jid, {
+            text: 'Hanya ADMIN yang boleh rekap user.'
+        });
+        return;
+    }
+    const validRoles = getRoles();
+    const parsed = parseRekapUserBlock(text, validRoles);
+    if (!parsed.ok) {
+        await ctx.sock.sendMessage(jid, {
+            text:
+`Format rekap user tidak valid: ${parsed.error}
+Gunakan:
+rekap user:
+Nama Lengkap 628xxxxxxxxxx ROLE
+Nama Lain 628xxxxxxxxxx ROLE
+
+Jabatan valid: ${validRoles.join(', ')}`
+        });
+        return;
+    }
+    const okList = [];
+    const failList = [...parsed.errors];
+    for (const m of parsed.items) {
+        const canonical = ctx.normalizeUserId(m.phone);
+        if (!canonical) {
+            failList.push(`${m.name} ${m.phone} - nomor tidak valid.`);
+            continue;
+        }
+        const r = upsertMember(canonical, m.name, m.role, ctx.normalizeUserId);
+        if (!r.ok) {
+            failList.push(`${m.name} ${canonical} - ${r.error}`);
+            continue;
+        }
+        okList.push(`${m.name} (${canonical}) - ${m.role}`);
+    }
+    let msg = 'REKAP USER\n';
+    if (okList.length > 0) {
+        msg += `\nBerhasil (${okList.length}):\n`;
+        okList.forEach(l => { msg += `- ${l}\n`; });
+    }
+    if (failList.length > 0) {
+        msg += `\nGagal (${failList.length}):\n`;
+        failList.forEach(l => { msg += `- ${l}\n`; });
+    }
+    if (okList.length === 0 && failList.length === 0) {
+        msg += '\nTidak ada data yang diproses.';
+    }
+    await ctx.sock.sendMessage(jid, { text: msg.trim() });
+    appendLog('CMD', 'Rekap user (deterministik)',
+        `by=${senderPhone} ok=${okList.length} fail=${failList.length}`);
+}
+
 // ----- help -----
 async function cmdHelp(ctx, jid, admin) {
     let text =
@@ -360,7 +527,13 @@ Anggota grup menyelesaikan tugas dengan *reaction* pada pesan tugas.`;
 • *laporan jam daftar*
 • *laporan jam tambah HH:MM*
 • *laporan jam hapus HH:MM*
-• *laporan kirim* → kirim laporan sekarang (test)`;
+• *laporan kirim* → kirim laporan sekarang (test)
+
+*ADMIN — Nama tampilan & rekap:*
+• *nama 628xxx Nama Lengkap* → set nama tampilan di leaderboard
+• *nama tampilan 628xxx Nama Lengkap* → alias dari perintah di atas
+• *rekap user:* (multiline) → set nama + jabatan secara deterministik
+  Baris berikut: Nama Lengkap 628xxxxxxxxx ROLE`;
     }
     await ctx.sock.sendMessage(jid, { text });
 }
@@ -396,6 +569,49 @@ export async function tryHandlePhaseCCommand(ctx, jid, text, senderPhone) {
 
     if (lower === 'tugas bantuan' || lower === 'fase c bantuan' || lower === 'phase c help') {
         await cmdHelp(ctx, jid, admin);
+        return true;
+    }
+
+    // ---- Deterministik: rekap user multiline (admin-only, tapi dideteksi
+    //      di sini supaya nonadmin tetap mendapat penolakan eksplisit dan
+    //      bukan jatuh ke AI). ----
+    if (isRekapUserTrigger(text)) {
+        await cmdRekapUser(ctx, jid, senderPhone, text);
+        return true;
+    }
+
+    // ---- Deterministik: set nama tampilan (admin-only, dengan explicit
+    //      denial untuk nonadmin). "nama tampilan 628x ..." dicek dulu
+    //      agar kata "tampilan" tidak masuk ke bagian nama. ----
+    const namaTampilanMatch = text.match(/^nama\s+tampilan\s+(\d{6,})\s+(.+)$/i);
+    if (namaTampilanMatch) {
+        await cmdSetDisplayName(ctx, jid, senderPhone, namaTampilanMatch[1], namaTampilanMatch[2]);
+        return true;
+    }
+    const namaMatch = text.match(/^nama\s+(\d{6,})\s+(.+)$/i);
+    if (namaMatch) {
+        await cmdSetDisplayName(ctx, jid, senderPhone, namaMatch[1], namaMatch[2]);
+        return true;
+    }
+    // Bentuk invalid tapi berniat memanggil "nama ..." - jangan jatuh ke AI,
+    // keluarkan pesan format.
+    if (/^nama(\s+tampilan)?\b/i.test(text.trim()) &&
+        !/^nama(\s+tampilan)?\s+\d{6,}\s+.+$/i.test(text.trim())) {
+        if (!admin) {
+            await ctx.sock.sendMessage(jid, {
+                text: 'Hanya ADMIN yang boleh mengatur nama tampilan.'
+            });
+            return true;
+        }
+        await ctx.sock.sendMessage(jid, {
+            text:
+`Format tidak valid.
+Gunakan:
+  nama <nomor> <nama tampilan>
+  nama tampilan <nomor> <nama tampilan>
+Contoh:
+  nama 628123456789 Budi Santoso`
+        });
         return true;
     }
 

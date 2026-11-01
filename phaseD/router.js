@@ -677,23 +677,31 @@ async function execRekapUser(ctx, jid, senderPhone, intent) {
             continue;
         }
 
-        // Sinkronkan nama ke users.json supaya displayName resolve utk laporan
-        // + fix bug LID (nama muncul, bukan digit mentah).
-        const idx = users.users.findIndex(u =>
+        // Sinkronkan NAMA SAJA ke users.json HANYA jika nomor sudah terdaftar
+        // sebagai USER/ADMIN. Tujuannya hanya memperbarui display name supaya
+        // bug LID (digit mentah) tidak muncul di laporan untuk user existing.
+        //
+        // PENTING: input nama di sini TIDAK boleh menambahkan nomor ke daftar
+        // pengguna bot. Pendaftaran USER harus lewat `admin tambah` / NL
+        // `admin_tambah_user`. Lihat index.js:218 (addUser) dan router.js
+        // execAdminTambah (jalur sah). Role/aliases/akses tidak diubah.
+        const userIdx = users.users.findIndex(u =>
             ctx.normalizeUserId(u.jid || u.phone) === canonical
         );
-        if (idx >= 0) {
-            users.users[idx].name = nm;
-            if (!users.users[idx].phone) users.users[idx].phone = canonical;
-        } else {
-            users.users.push({
-                jid: canonical,
-                phone: canonical,
-                name: nm,
-                addedAt: new Date().toISOString(),
-                source: 'phaseD-rekap'
-            });
+        const adminIdx = Array.isArray(users.admins)
+            ? users.admins.findIndex(a =>
+                ctx.normalizeUserId(a.jid || a.phone) === canonical)
+            : -1;
+        if (userIdx >= 0) {
+            users.users[userIdx].name = nm;
+            if (!users.users[userIdx].phone) users.users[userIdx].phone = canonical;
+        } else if (adminIdx >= 0) {
+            users.admins[adminIdx].name = nm;
+            if (!users.admins[adminIdx].phone) users.admins[adminIdx].phone = canonical;
         }
+        // Else: nomor tidak terdaftar — jangan tambahkan ke users.json.
+        // Nama tetap tersimpan di roster (upsertMember di atas) dan leaderboard
+        // menampilkannya dari sana.
 
         okList.push(`${nm} (${canonical}) — ${role}`);
     }
