@@ -70,6 +70,7 @@ export function markReminderAsTask(reminder, points, ownerJid) {
         id: reminder.id,
         ownerJid: ownerJid || reminder.ownerJid || '',
         chatId: reminder.chatId,
+        text: reminder.text || '',
         points: Number(points) || 0,
         createdAt: new Date().toISOString()
     };
@@ -79,26 +80,33 @@ export function markReminderAsTask(reminder, points, ownerJid) {
 
 // Dipanggil saat reminder terkirim (message sudah punya key.id).
 // Menyimpan mapping messageId <-> occurrence.
-export function recordTaskDelivery({ reminderId, date, messageId }) {
+export function recordTaskDelivery({ reminderId, date, messageId, chatId, text, deliveredAt }) {
     if (!isTask(reminderId)) return;
+
+    const tasks = loadTasks();
+    if (chatId) tasks[String(reminderId)].chatId = chatId;
+    if (text) tasks[String(reminderId)].text = text;
+    saveTasks(tasks);
 
     const key = occurrenceKey(reminderId, date);
     const occ = loadOccurrences();
+    const previous = occ[key];
+    const idx = loadMessageIndex();
+    if (previous?.messageId && previous.messageId !== messageId) delete idx[previous.messageId];
 
-    if (!occ[key]) {
-        occ[key] = {
-            taskId: String(reminderId),
-            date,
-            messageId,
-            completedBy: {}
-        };
-    } else {
-        occ[key].messageId = messageId;
-    }
+    // Pesan baru pada tanggal yang sama adalah kejadian terbaru. Reset status
+    // selesai/pengingat agar reaction pada pesan lama tidak menyelesaikan ini.
+    occ[key] = {
+        taskId: String(reminderId),
+        chatId: chatId || tasks[String(reminderId)]?.chatId || '',
+        date,
+        messageId,
+        deliveredAt: deliveredAt || new Date().toISOString(),
+        completedBy: {}
+    };
 
     saveOccurrences(occ);
 
-    const idx = loadMessageIndex();
     idx[messageId] = key;
     saveMessageIndex(idx);
 

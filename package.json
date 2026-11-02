@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test scheduler-edit.test.js scheduler-hardening.test.js phaseD/schedulePreserve.test.js phaseD/router.test.js"
+    "test": "node --test scheduler-edit.test.js scheduler-hardening.test.js phaseD/schedulePreserve.test.js phaseD/router.test.js task-reminders.test.js"
   },
   "keywords": [],
   "author": "",

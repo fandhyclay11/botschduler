@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const DATA_DIR = './data_phaseC';
+const DATA_DIR = process.env.PHASEC_DATA_DIR || './data_phaseC';
 
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -21,6 +21,7 @@ export const FILES = {
     points: path.join(DATA_DIR, 'points.json'),
     reportConfig: path.join(DATA_DIR, 'report_config.json'),
     roster: path.join(DATA_DIR, 'roster.json'),
+    taskReminderConfig: path.join(DATA_DIR, 'task_reminder_config.json'),
     logs: path.join(DATA_DIR, 'phaseC.log')
 };
 
@@ -47,6 +48,7 @@ ensureFile(FILES.roster, {
     },
     members: {}
 });
+ensureFile(FILES.taskReminderConfig, { enabledGroups: [] });
 
 export function readJson(file, fallback) {
     try {

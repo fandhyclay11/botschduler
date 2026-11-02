@@ -43,6 +43,7 @@ import {
 } from './reportConfig.js';
 import { sendReportsNow } from './reports.js';
 import { appendLog } from './store.js';
+import { isTaskReminderEnabled, listTaskReminderGroups, setTaskReminderEnabled } from './taskReminders.js';
 import {
     setDisplayName,
     getRoles,
@@ -206,6 +207,7 @@ function isValidGroupId(value) {
 
 // State picker admin: Map<jid, groups[]>
 const reportGroupPickers = new Map();
+const taskReminderGroupPickers = new Map();
 
 function resolveGroupRef(ctx, jid, ref) {
     const trimmed = String(ref || '').trim();
@@ -347,6 +349,50 @@ async function cmdReportSendNow(ctx, jid) {
     await ctx.sock.sendMessage(jid, {
         text: result.ok
             ? `📤 Laporan dikirim ke ${result.count} grup.`
+            : `❌ ${result.error}`
+    });
+}
+
+async function cmdTaskReminderGroupPick(ctx, jid) {
+    const groups = await fetchAllGroupsForAdmin(ctx);
+    if (!groups.length) {
+        await ctx.sock.sendMessage(jid, { text: '📭 Bot belum menjadi anggota grup mana pun.' });
+        return;
+    }
+    taskReminderGroupPickers.set(jid, groups.map(g => ({ id: g.id, name: g.name })));
+    let text = '📋 *PILIH GRUP PENGINGAT TUGAS*\n\n';
+    groups.forEach((g, i) => { text += `${i + 1}. ${g.name} — ${isTaskReminderEnabled(g.id) ? 'aktif' : 'nonaktif'}\n`; });
+    text += '\nPilih dengan: *pengingat aktif <nomor>* atau *pengingat nonaktif <nomor>*';
+    await ctx.sock.sendMessage(jid, { text });
+}
+
+async function cmdTaskReminderList(ctx, jid) {
+    const groups = await fetchAllGroupsForAdmin(ctx);
+    if (!groups.length) {
+        await ctx.sock.sendMessage(jid, { text: '📭 Bot belum menjadi anggota grup mana pun.' });
+        return;
+    }
+    const enabled = new Set(listTaskReminderGroups());
+    let text = '🔔 *STATUS PENGINGAT TUGAS*\n\n';
+    groups.forEach(g => { text += `• ${g.name}: ${enabled.has(g.id) ? 'aktif' : 'nonaktif'}\n`; });
+    await ctx.sock.sendMessage(jid, { text: text.trim() });
+}
+
+async function cmdTaskReminderSet(ctx, jid, enabled, ref) {
+    const value = String(ref || '').trim();
+    const groups = taskReminderGroupPickers.get(jid) || [];
+    const selected = /^\d+$/.test(value) ? groups[Number(value) - 1] : null;
+    const current = await fetchAllGroupsForAdmin(ctx);
+    const targetId = selected?.id || (/^[0-9-]+@g\.us$/.test(value) ? value : '');
+    const target = current.find(g => g.id === targetId) || null;
+    if (!target) {
+        await ctx.sock.sendMessage(jid, { text: '❌ Grup tidak ditemukan. Ketik *pengingat grup pilih* lalu gunakan nomornya.' });
+        return;
+    }
+    const result = setTaskReminderEnabled(target.id, enabled);
+    await ctx.sock.sendMessage(jid, {
+        text: result.ok
+            ? `✅ Pengingat tugas ${enabled ? 'diaktifkan' : 'dinonaktifkan'} untuk *${target.name || target.id}*. Status saat ini: *${enabled ? 'aktif' : 'nonaktif'}*.`
             : `❌ ${result.error}`
     });
 }
@@ -616,7 +662,22 @@ Contoh:
     }
 
     // ---- ADMIN only ----
+    if (/^pengingat(?:\s|$)/i.test(lower) && !admin) {
+        await ctx.sock.sendMessage(jid, { text: '❌ Hanya ADMIN yang boleh mengubah pengingat tugas.' });
+        return true;
+    }
     if (!admin) return false;
+
+    if (lower === 'pengingat grup pilih' || lower === 'pengingat pilih') {
+        await cmdTaskReminderGroupPick(ctx, jid); return true;
+    }
+    if (lower === 'pengingat grup daftar' || lower === 'pengingat daftar') {
+        await cmdTaskReminderList(ctx, jid); return true;
+    }
+    const reminderEnable = text.match(/^pengingat\s+(?:grup\s+)?aktif\s+(.+)$/i);
+    if (reminderEnable) { await cmdTaskReminderSet(ctx, jid, true, reminderEnable[1]); return true; }
+    const reminderDisable = text.match(/^pengingat\s+(?:grup\s+)?nonaktif\s+(.+)$/i);
+    if (reminderDisable) { await cmdTaskReminderSet(ctx, jid, false, reminderDisable[1]); return true; }
 
     const deductMatch = text.match(/^(?:poin\s+kurang|kurangi\s+poin)\s+(\d{6,})\s+(\d+)$/i);
     if (deductMatch) {

@@ -39,6 +39,9 @@ Bot WhatsApp scheduler + task/poin/leaderboard, berbasis Baileys v7.
   - `laporan grup hapus <nomor|groupId>`
   - `laporan jam daftar` / `laporan jam tambah HH:MM` / `laporan jam hapus HH:MM`
   - `laporan kirim` — test kirim leaderboard sekarang ke semua grup laporan
+- `pengingat grup pilih` → pilih grup dan lihat status pengingat tugas
+- `pengingat aktif <nomor>` / `pengingat nonaktif <nomor>` → atur pengingat grup yang dipilih
+- `pengingat grup daftar` → lihat status pengingat semua grup
 
 ### Format Jadwal (untuk Biasa & Tugas)
 ```
@@ -70,6 +73,7 @@ Poin auto-reset di awal bulan.
 - `data_phaseC/message_index.json` — mapping messageId → occurrence
 - `data_phaseC/points.json` — akumulasi poin bulan berjalan
 - `data_phaseC/report_config.json` — grup + jam laporan
+- `data_phaseC/task_reminder_config.json` — status pengingat per grup
 - `data_phaseC/phaseC.log` — log Fase C
 
 ## Struktur File

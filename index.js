@@ -1150,7 +1150,9 @@ async function sendQueuedReminder(item) {
             phaseC.recordTaskDelivery({
                 reminderId: reminder.id,
                 date: item.date,
-                messageId: result.key.id
+                messageId: result.key.id,
+                chatId: reminder.chatId,
+                text: reminder.text
             });
         } catch (e) {
             writeLog('WARN', 'phaseC.recordTaskDelivery gagal', e?.message || e);
@@ -2289,6 +2291,12 @@ async function startBot() {
                 globalThis.__WA_RECONNECT_ATTEMPTS__ = 0;
 
                 startReminderChecker(sock);
+                try {
+                    phaseC.startTaskReminderScheduler(sock, () => ({ reminders: loadReminders() }));
+                    console.log('🔔 Pengingat tugas: scheduler aktif.');
+                } catch (e) {
+                    writeLog('ERROR', 'task reminder scheduler gagal start', e?.message || e);
+                }
 
                 // ==== FASE C: start report scheduler (loop kecil independen) ====
                 try {
@@ -2335,6 +2343,7 @@ async function startBot() {
                         // sendingDeliveryKeys. Me-reset `true -> false`
                         // bisa menyebabkan dua worker paralel.
                         phaseC.stopReportScheduler(sock);
+                        phaseC.stopTaskReminderScheduler();
                     } catch (cleanupError) {
                         writeLog(
                             'WARN',
