@@ -1,7 +1,0 @@
-   {
-     "baseUrl": "https://api.amanai.dev/v1",
-     "apiKey": "sk-amanai-a4c581e8e6bbdae9186f4781ac955ca69a790d10",
-     "model": "amanai/deepseek-v4-flash",
-     "enabled":true
-   }
-   
